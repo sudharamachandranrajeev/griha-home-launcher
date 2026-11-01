@@ -1,6 +1,6 @@
 <h1 align="center">
   <br>
-  <a href="https://github.com/sudharamachandranrajeev/griha"><img src="branding/griha-512.png" alt="Griha" width="140"></a>
+  <a href="https://github.com/sudharamachandranrajeev/griha-home-launcher"><img src="branding/griha-512.png" alt="Griha" width="140"></a>
   <br>
   Griha
   <br>
@@ -9,7 +9,7 @@
 <h4 align="center">A calm, private home screen for your Android phone, with eight layouts, six 3D themes, a themed lock screen and stickers cut from your photos.</h4>
 
 <p align="center">
-  <a href="https://github.com/sudharamachandranrajeev/griha/releases"><img src="https://img.shields.io/github/v/release/sudharamachandranrajeev/griha?include_prereleases&color=8a6512&label=download" alt="Latest release"></a>
+  <a href="https://github.com/sudharamachandranrajeev/griha-home-launcher/releases"><img src="https://img.shields.io/github/v/release/sudharamachandranrajeev/griha-home-launcher?include_prereleases&color=8a6512&label=download" alt="Latest release"></a>
   <img src="https://img.shields.io/badge/works%20on-Android%208.0%2B-555" alt="Works on Android 8.0 and later">
   <a href="LICENSE"><img src="https://img.shields.io/badge/licence-MIT-2e7d32" alt="Licence MIT"></a>
   <a href="https://github.com/sudharamachandranrajeev/brahma"><img src="https://img.shields.io/badge/part%20of-Brahma-8a5cf6" alt="Part of Brahma"></a>
@@ -44,7 +44,7 @@ Status: **beta (0.5)**, used daily on one phone. One honest limit: it does not h
 
 ## 🚀 Get started
 
-**Step 1 – Download.** Open the [releases page](https://github.com/sudharamachandranrajeev/griha/releases).
+**Step 1 – Download.** Open the [releases page](https://github.com/sudharamachandranrajeev/griha-home-launcher/releases).
 
 | Platform | File to pick | Works on |
 | --- | --- | --- |

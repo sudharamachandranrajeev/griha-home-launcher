@@ -38,7 +38,7 @@ data class Release(
  * signing certificate before Android is asked to install it.
  */
 object Updates {
-    const val REPO = "sudharamachandranrajeev/griha"
+    const val REPO = "sudharamachandranrajeev/griha-home-launcher"
     private const val TIMEOUT_MILLIS = 15_000
     private val HEX64 = Regex("\\b[0-9a-fA-F]{64}\\b")
 
