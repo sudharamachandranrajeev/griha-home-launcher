@@ -278,6 +278,7 @@ class MainActivity : Activity() {
                 },
                 luxe = LuxeHooks(luxe, onFocusChanged = { if (this@MainActivity.screen == Screen.HOME) renderHome() }, onCustomise = ::customiseLuxe)))
         home = screen
+        dress(screen, drawer = false, settings.homePalette(appliedDark)) { screen.backdrop = it }
         show(screen, drawerMotion = if (fromDrawer) settings.drawerMotion else null, opening = false)
         updateStatus()
     }
@@ -362,7 +363,8 @@ class MainActivity : Activity() {
                 (if (Build.VERSION.SDK_INT >= 27) View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0)
         }
         // Home and drawer draw a scrim over the wallpaper; settings stays opaque.
-        if (settings.wallpaper && (root is HomeScreen || root is DrawerScreen)) {
+        if (settings.wallpaper && (root is HomeScreen && settings.pictureFor(false) == null ||
+                root is DrawerScreen && settings.pictureFor(true) == null)) {
             window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
             window.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
         } else {
@@ -468,6 +470,7 @@ class MainActivity : Activity() {
                 onAppOptions = ::appOptions,
                 onHome = ::renderHome))
         drawer = view
+        dress(view, drawer = true, settings.homePalette(appliedDark)) { view.backdrop = it }
         show(view, drawerMotion = if (fromHome) settings.drawerMotion else null)
         if (focusSearch) view.search.post {
             view.search.requestFocus()
@@ -830,10 +833,50 @@ class MainActivity : Activity() {
         is WallpaperSource.Imported -> WallpaperFiles.load(source.file, maxOf(width, height))
     }
 
+    // ---- Wallpaper behind home and all apps ----
+
+    /** Full-screen pictures already drawn, by what they show; at most home's and all apps'. */
+    private val wallCache = LinkedHashMap<String, Bitmap>()
+
+    /**
+     * Puts the chosen picture behind [view], drawn by Griha so it can answer touches; with no
+     * picture and Android's wallpaper on, passes taps and scrolling on to Android's wallpaper.
+     */
+    private fun dress(view: View, drawer: Boolean, colors: Palette, attach: (TouchBackdrop) -> Unit) {
+        val motion = settings.wallMotion && Effects.enabled(settings)
+        val choice = settings.pictureFor(drawer)
+        val source = WallChoice.source(choice, wallpaperFiles.list())
+        if (source == null) {
+            if (settings.wallpaper) {
+                val system = SystemWallpaperMotion(WallpaperManager.getInstance(this), motion)
+                view.post { system.attach(view) }
+                attach(system)
+            }
+            return
+        }
+        val dim = ((if (drawer) 0.15f else 0f) + settings.wallDim).coerceIn(0f, 0.95f)
+        val wall = WallpaperDrawable(colors, resources.displayMetrics.density, (dim * 255).toInt(), motion)
+        view.background = wall
+        attach(wall)
+        val (width, height) = screenSize()
+        val dark = appliedDark
+        val key = "$choice|$dark|${width}x$height"
+        wallCache[key]?.let { wall.bitmap = it; return }
+        thumbnails.execute {
+            val bitmap = try { drawWallpaper(source, dark, width, height) } catch (_: Exception) { null }
+            runOnUiThread {
+                if (bitmap == null) return@runOnUiThread
+                wallCache[key] = bitmap
+                while (wallCache.size > 2) wallCache.remove(wallCache.keys.first())
+                wall.bitmap = bitmap
+            }
+        }
+    }
+
     private fun pickWallpaper(source: WallpaperSource) {
         // Griha's own lock design redraws the lock screen, so the lock choice is offered only when that is off.
-        val choices = mutableListOf("Home screen")
-        if (!settings.lockScreen) choices += "Home and lock screen"
+        val choices = mutableListOf("Griha: home and all apps", "Griha: home only", "Griha: all apps only", "Android: home screen")
+        if (!settings.lockScreen) choices += "Android: home and lock screen"
         if (source is WallpaperSource.Imported) choices += "Remove from Griha"
         AlertDialog.Builder(this).setTitle("Use this wallpaper")
             .setItems(choices.toTypedArray()) { _, which ->
@@ -845,10 +888,20 @@ class MainActivity : Activity() {
                             showWallpapers()
                         }
                         .setNegativeButton(R.string.cancel, null).show()
-                    else -> setWallpaper(source, lock = choices[which] == "Home and lock screen")
+                    "Griha: home and all apps" -> useInGriha(settings.copy(homePicture = WallChoice.of(source), drawerSame = true))
+                    "Griha: home only" -> useInGriha(settings.copy(homePicture = WallChoice.of(source),
+                        drawerSame = false, drawerPicture = if (settings.drawerSame) settings.homePicture else settings.drawerPicture))
+                    "Griha: all apps only" -> useInGriha(settings.copy(drawerSame = false, drawerPicture = WallChoice.of(source)))
+                    else -> setWallpaper(source, lock = choices[which] == "Android: home and lock screen")
                 }
             }
             .setNegativeButton(R.string.cancel, null).show()
+    }
+
+    private fun useInGriha(changed: LauncherSettings) {
+        settings = changed
+        store.save(changed)
+        Toast.makeText(this, "Wallpaper set in Griha", Toast.LENGTH_SHORT).show()
     }
 
     private fun setWallpaper(source: WallpaperSource, lock: Boolean) {

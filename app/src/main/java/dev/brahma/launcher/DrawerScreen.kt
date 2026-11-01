@@ -46,6 +46,13 @@ class DrawerScreen(
         divider = null
         isFastScrollEnabled = false
         isVerticalScrollBarEnabled = false
+        // Rows draw their own press light. Android's list highlight can linger on a recycled row while
+        // scrolling, faded edges paint a band over a see-through page, and the overscroll stretch pulls
+        // rows out of place while the same drag is closing all apps; all three are off.
+        selector = android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT)
+        isVerticalFadingEdgeEnabled = false
+        cacheColorHint = android.graphics.Color.TRANSPARENT
+        overScrollMode = OVER_SCROLL_NEVER
     }
     private val letters = LetterStrip(context, colors) { jumpTo(it) }
     private val empty = context.label(context.getString(R.string.no_apps), 16f, muted).apply {
@@ -78,6 +85,11 @@ class DrawerScreen(
                 text = if (row.title == AppCatalog.FAVORITES) context.getString(R.string.favorites) else row.title
             }
             is DrawerRow.App -> ((convertView as? android.widget.FrameLayout) ?: appRow()).apply {
+                // A recycled row may still carry a pop or wheel pose from its last place; start clean.
+                if (depth3d != DrawerDepth.WHEEL) {
+                    animate().cancel()
+                    scaleX = 1f; scaleY = 1f; rotationX = 0f; rotationY = 0f; translationX = 0f; translationY = 0f; alpha = 1f
+                }
                 findViewById<ImageView>(android.R.id.icon).apply {
                     showIcon(row.app, icons)
                 }
@@ -96,7 +108,10 @@ class DrawerScreen(
             gravity = Gravity.CENTER_VERTICAL
             minimumHeight = context.dp(if (extruded) 60 else 56)
             setPadding(context.dp(if (extruded) 12 else 8), context.dp(4), context.dp(8), context.dp(4))
-            if (extruded) depth(colors, context.dp(18).toFloat(), Role.KEY, extrude = 5 * resources.displayMetrics.density)
+            if (extruded) depth(colors, context.dp(18).toFloat(), Role.KEY, extrude = 5 * resources.displayMetrics.density, still = true)
+            else background = android.graphics.drawable.StateListDrawable().apply {
+                addState(intArrayOf(android.R.attr.state_pressed), rounded(tone(ink, 0.08f), context.dp(14).toFloat()))
+            }
             addView(ImageView(context).apply {
                 id = android.R.id.icon
                 importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
@@ -106,8 +121,8 @@ class DrawerScreen(
                 setPadding(context.dp(16), 0, 0, 0)
             }, LayoutParams(0, -2, 1f))
         }, android.widget.FrameLayout.LayoutParams(-1, -2))
-        // The wheel sets each row's scale itself, so the tap pop stays off there.
-        if (effects && depth3d != DrawerDepth.WHEEL) Effects.pop(this)
+        // No pop on rows: in a list, a finger landing to scroll must never squeeze or move a row.
+        // Taps still answer with the tile's light, and the app opens out of the row.
     }
 
     /** Turns each row with its distance from the middle of the list, like the face of a wheel. */
@@ -154,6 +169,7 @@ class DrawerScreen(
             override fun onScrollStateChanged(view: android.widget.AbsListView, state: Int) = Unit
             override fun onScroll(view: android.widget.AbsListView, first: Int, visible: Int, total: Int) {
                 wheel()
+                backdrop?.scrolled(if (total > visible) first / (total - visible).toFloat() else 0f)
                 letters.current = rows.getOrNull(first)?.let { row -> headerFor(first, row) }
             }
         })
@@ -184,8 +200,17 @@ class DrawerScreen(
         return !onLetters && swipe.onTouch(event)
     }
 
+    /** The wallpaper behind all apps, told about every touch and scroll so it can answer them. */
+    var backdrop: TouchBackdrop? = null
+
+    override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
+        if (event.isFromSource(android.view.InputDevice.SOURCE_CLASS_POINTER)) backdrop?.touch(event, this)
+        return super.dispatchGenericMotionEvent(event)
+    }
+
     // Watched here rather than by intercepting: the list stops its parent intercepting once it starts to drag.
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        backdrop?.touch(event, this)
         val already = swipe.fired
         if (!swipeDown(event)) return super.dispatchTouchEvent(event)
         if (!already) {

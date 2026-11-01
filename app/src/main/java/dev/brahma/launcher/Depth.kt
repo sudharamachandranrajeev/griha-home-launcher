@@ -65,6 +65,8 @@ class DepthSpec(val radius: Float) {
     var pressInner = emptyList<Shade>()
     /** How much of the outer shadow a press takes away, 0 to 1. */
     var pressLift = 0.5f
+    /** Whether a press pushes the face down over its [lip]. Off for rows in a scrolling list, where nothing should move. */
+    var pressSinks = true
     /** A darker band under the face: the side of a raised key. A press pushes the face down over it. */
     var lip = 0f
     var lipColor = Color.TRANSPARENT
@@ -110,7 +112,7 @@ class DepthDrawable(private val spec: DepthSpec) : Drawable() {
     override fun draw(canvas: Canvas) {
         if (bounds.isEmpty) return
         build()
-        val sink = spec.lip * press
+        val sink = if (spec.pressSinks) spec.lip * press else 0f
         val radius = radiusFor(shape)
         val alpha = alphaLevel / 255f
 
@@ -476,8 +478,14 @@ object Depth {
  * accent colour as fill makes it the primary action. [border] is the edge in the flat finish.
  */
 fun View.depth(colors: Palette, radius: Float, role: Role = Role.CARD, fill: Int = if (role == Role.PRIMARY) colors.accent else colors.surface,
-               glow: Boolean = false, border: Int? = null, tint: Int? = null, extrude: Float = 0f) {
+               glow: Boolean = false, border: Int? = null, tint: Int? = null, extrude: Float = 0f, still: Boolean = false) {
     val spec = Depth.spec(colors, radius, role, fill, glow, resources.displayMetrics.density, border, tint)
+    // Still surfaces answer a press with light only: no sinking, so content never seems to shift.
+    if (still) {
+        spec.pressSinks = false
+        spec.pressLift = 0.25f
+        spec.pressGlow = max(spec.pressGlow, 0.55f)
+    }
     // Extruded: a solid side under the face in any finish, like a key standing up from the page.
     if (extrude > spec.lip) {
         spec.lip = extrude

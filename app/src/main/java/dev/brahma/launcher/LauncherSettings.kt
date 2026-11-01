@@ -36,8 +36,20 @@ data class LauncherSettings(
     /** Home takes the finish's colours; off keeps each layout's own. */
     val finishColours: Boolean = true,
     /** How rows in all apps stand off the page. */
-    val drawerDepth: DrawerDepth = DrawerDepth.EXTRUDED
+    val drawerDepth: DrawerDepth = DrawerDepth.EXTRUDED,
+    /** A picture Griha draws behind home itself (see [WallChoice]); null uses Android's wallpaper or the theme's page. */
+    val homePicture: String? = null,
+    /** All apps shows the same picture as home. */
+    val drawerSame: Boolean = true,
+    val drawerPicture: String? = null,
+    /** Griha's pictures drift and answer touches in the finish's style. */
+    val wallMotion: Boolean = true,
+    /** How much of the page colour lies over Griha's pictures, 0 to 1, so text stays readable. */
+    val wallDim: Float = 0.35f
 ) {
+    /** The picture behind home, or all apps when [drawer]; null when there is none. */
+    fun pictureFor(drawer: Boolean) = if (drawer && !drawerSame) drawerPicture else homePicture
+
     companion object { const val MAX_SHORTCUTS = 3 }
 
     fun iconKit(colors: Palette) = IconKit(iconStyle, iconShape, iconPlate, iconPack, colors)
@@ -84,7 +96,12 @@ class SettingsStore(private val preferences: SharedPreferences) {
         swipeDistance = SwipeDistance.entries.find { it.name == preferences.getString("swipe_distance", null) } ?: SwipeDistance.MEDIUM,
         drawerMotion = DrawerMotion.entries.find { it.name == preferences.getString("drawer_motion", null) } ?: DrawerMotion.SLIDE,
         finishColours = preferences.getBoolean("finish_colours", true),
-        drawerDepth = DrawerDepth.entries.find { it.name == preferences.getString("drawer_depth", null) } ?: DrawerDepth.EXTRUDED
+        drawerDepth = DrawerDepth.entries.find { it.name == preferences.getString("drawer_depth", null) } ?: DrawerDepth.EXTRUDED,
+        homePicture = preferences.getString("home_picture", null),
+        drawerSame = preferences.getBoolean("drawer_same", true),
+        drawerPicture = preferences.getString("drawer_picture", null),
+        wallMotion = preferences.getBoolean("wall_motion", true),
+        wallDim = preferences.getFloat("wall_dim", 0.35f)
     )
 
     fun save(settings: LauncherSettings) {
@@ -111,6 +128,11 @@ class SettingsStore(private val preferences: SharedPreferences) {
             .putString("drawer_motion", settings.drawerMotion.name)
             .putBoolean("finish_colours", settings.finishColours)
             .putString("drawer_depth", settings.drawerDepth.name)
+            .putString("home_picture", settings.homePicture)
+            .putBoolean("drawer_same", settings.drawerSame)
+            .putString("drawer_picture", settings.drawerPicture)
+            .putBoolean("wall_motion", settings.wallMotion)
+            .putFloat("wall_dim", settings.wallDim)
             .apply()
         if (!settings.lockScreen) saveLockKey(null)
         if (!settings.weather) clearWeather()

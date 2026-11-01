@@ -182,8 +182,25 @@ class SettingsScreen(
         group.addView(context.label("Off keeps each home layout's own colours, still drawn in the finish. Luxe always keeps its gold.", 14f, muted))
 
         section("Wallpaper")
-        toggle("Show my wallpaper behind home", current.wallpaper) { update(current.copy(wallpaper = it)) }
+        group.addView(context.label("Griha can draw its own wallpaper behind home and all apps, so it can move with you. " +
+            "Pick one in Wallpapers and choose Griha.", 14f, muted))
         group.addView(context.action("Wallpapers: theme sets and your packs", accent, actions.onWallpaper))
+        group.addView(LinearLayout(context).apply {
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            addView(context.label("Home: ${WallChoice.title(current.homePicture)}", 15f, ink), LinearLayout.LayoutParams(0, -2, 1f))
+            if (current.homePicture != null) addView(context.action("Remove", accent) { update(current.copy(homePicture = null)); actions.onCategory(SettingsCategory.LOOK) })
+        })
+        toggle("All apps uses the home picture", current.drawerSame) { update(current.copy(drawerSame = it)); actions.onCategory(SettingsCategory.LOOK) }
+        if (!current.drawerSame) group.addView(LinearLayout(context).apply {
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            addView(context.label("All apps: ${WallChoice.title(current.drawerPicture)}", 15f, ink), LinearLayout.LayoutParams(0, -2, 1f))
+            if (current.drawerPicture != null) addView(context.action("Remove", accent) { update(current.copy(drawerPicture = null)); actions.onCategory(SettingsCategory.LOOK) })
+        })
+        toggle("Wallpaper answers your touch", current.wallMotion) { update(current.copy(wallMotion = it)) }
+        group.addView(context.label("It drifts as you scroll, leans toward your finger, sends out the theme's light when you tap " +
+            "and gives way when you swipe. Off while Android's Remove animations setting is on.", 14f, muted))
+        group.addView(context.slider("Dimming, so text stays readable", current.wallDim, colors) { update(current.copy(wallDim = it)) })
+        toggle("Show Android's wallpaper when there is no Griha picture", current.wallpaper) { update(current.copy(wallpaper = it)) }
     }
 
     private fun buildGestures() {

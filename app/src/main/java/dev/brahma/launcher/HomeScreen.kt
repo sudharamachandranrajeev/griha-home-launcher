@@ -177,6 +177,25 @@ class HomeScreen(
 
     override fun onInterceptTouchEvent(event: MotionEvent) = swipeUp(event) || super.onInterceptTouchEvent(event)
 
+    /** The wallpaper behind home, told about every touch and scroll so it can answer them. */
+    var backdrop: TouchBackdrop? = null
+
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        backdrop?.touch(event, this)
+        return super.dispatchTouchEvent(event)
+    }
+
+    override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {
+        if (event.isFromSource(android.view.InputDevice.SOURCE_CLASS_POINTER)) backdrop?.touch(event, this)
+        return super.dispatchGenericMotionEvent(event)
+    }
+
+    override fun onScrollChanged(left: Int, top: Int, oldLeft: Int, oldTop: Int) {
+        super.onScrollChanged(left, top, oldLeft, oldTop)
+        val range = (getChildAt(0)?.height ?: 0) - height
+        backdrop?.scrolled(if (range > 0) top / range.toFloat() else 0f)
+    }
+
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent) = swipeUp(event) || super.onTouchEvent(event)
 
