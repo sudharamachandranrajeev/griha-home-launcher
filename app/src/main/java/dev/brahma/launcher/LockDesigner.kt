@@ -138,6 +138,7 @@ class LockDesigner(
             controls.addView(context.action("Shuffle", colors.accent) { change(design.copy(seed = kotlin.random.Random.nextLong())) })
             toggle("A new one every day", design.daily) { change(design.copy(daily = it)) }
         }
+        if (design.background == LockBackground.BLURRED) blurControls()
         if (design.background == LockBackground.PHOTO || design.background == LockBackground.BLURRED || design.background == LockBackground.GENERATED) photoLook()
         section("Sticker")
         if (stickers.isEmpty()) controls.addView(context.label("Add a sticker in Settings first to use a photo or subject here.", 14f, colors.muted))
@@ -175,6 +176,26 @@ class LockDesigner(
             controls.addView(context.slider("Top to bottom", design.subjectY, colors) { change(design.copy(subjectY = it)) })
         }
         post { scrollTo(0, keep) }
+    }
+
+    // The blurred photo: a style and the sliders that matter for it.
+    private fun blurControls() {
+        val blur = design.blur
+        fun set(next: LockBlur, rebuild: Boolean = false) = change(design.copy(blur = next), rebuild = rebuild)
+        section("Blur")
+        choices(BlurStyle.entries.map { it.title }, blur.style.ordinal) { set(blur.copy(style = BlurStyle.entries[it]), rebuild = true) }
+        controls.addView(context.slider("Strength", blur.strength, colors) { set(blur.copy(strength = it)) })
+        if (blur.style == BlurStyle.BOKEH || blur.style == BlurStyle.MOTION) {
+            controls.addView(context.slider("Sparkle: how much lights bloom", blur.sparkle, colors) { set(blur.copy(sparkle = it)) })
+        }
+        if (blur.style == BlurStyle.PROGRESSIVE || blur.style == BlurStyle.ZOOM) {
+            controls.addView(context.slider(if (blur.style == BlurStyle.ZOOM) "Zoom centre, top to bottom" else "Sharp band, top to bottom",
+                blur.focus, colors) { set(blur.copy(focus = it)) })
+        }
+        controls.addView(context.slider("Colour: muted to vivid", blur.vibrancy, colors) { set(blur.copy(vibrancy = it)) })
+        controls.addView(context.slider("Light: darker to brighter", blur.light, colors) { set(blur.copy(light = it)) })
+        controls.addView(context.slider("Grain", blur.grain, colors) { set(blur.copy(grain = it)) })
+        controls.addView(context.action("Reset blur", colors.accent) { set(LockBlur(style = blur.style), rebuild = true) })
     }
 
     private fun photoLook() {

@@ -37,6 +37,7 @@ Status: **beta (0.5)**, used daily on one phone. One honest limit: it does not h
 - 🧱 **All apps in 3D** – extruded tiles that stand up on a solid side and sink when pressed, or a 3D wheel where rows turn away toward the edges. Or a flat list.
 - 🎨 **Icon theming** – reshape icons (circle, squircle, teardrop), put them on a coloured plate, or use an icon pack made for Nova or ADW.
 - 🔒 **Themed lock screen** – Griha draws your lock wallpaper with the date and a greeting, with text effects such as 3D extrusion, glossy glass, gold foil and Witcher steel.
+- 🌫️ **Lock photo blur** – six blur styles for your lock photo: soft focus, frosted glass, lens bokeh where lights bloom into discs, a progressive blur with a sharp band, a zoom burst and motion streaks. Tune strength, colour, light and grain.
 - 🖼️ **Wallpaper sets** – four wallpapers drawn for each look, plus your own pictures or a ZIP wallpaper pack.
 - ✂️ **Photo stickers** – pick a photo; Griha cuts out the person or pet on the phone and lets you place it on home.
 - 🌦️ **Optional weather** – off until you turn it on, and then it sends only the place you typed.

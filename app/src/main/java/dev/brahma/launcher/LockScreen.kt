@@ -65,7 +65,9 @@ data class LockDesign(
     val daily: Boolean = false,
     /** Keeps text and subject out of the band where Android draws its clock. */
     val clearClock: Boolean = true,
-    val style: LockStyle = LockStyle.PLAIN
+    val style: LockStyle = LockStyle.PLAIN,
+    /** How the blurred photo background looks. */
+    val blur: LockBlur = LockBlur()
 ) {
     fun encode(): String = JSONObject().apply {
         put("custom", custom)
@@ -90,6 +92,7 @@ data class LockDesign(
         put("daily", daily)
         put("clear_clock", clearClock)
         put("fx", style.name)
+        put("blur", blur.encode())
     }.toString()
 
     companion object {
@@ -119,7 +122,8 @@ data class LockDesign(
                     seed = item.optLong("seed", 1),
                     daily = item.optBoolean("daily"),
                     clearClock = item.optBoolean("clear_clock", true),
-                    style = LockStyle.entries.find { it.name == item.optString("fx") } ?: LockStyle.PLAIN
+                    style = LockStyle.entries.find { it.name == item.optString("fx") } ?: LockStyle.PLAIN,
+                    blur = LockBlur.decode(item.optJSONObject("blur"))
                 )
             } catch (_: org.json.JSONException) {
                 LockDesign()
@@ -195,13 +199,8 @@ object LockScreen {
         }
         when {
             photo != null && design.background == LockBackground.PHOTO -> canvas.drawBitmap(photo, photoMatrix, Paint(Paint.FILTER_BITMAP_FLAG))
-            photo != null && design.background == LockBackground.BLURRED -> {
-                // Cheap strong blur: shrink a lot, then stretch back with filtering, then a light scrim.
-                val tiny = Bitmap.createScaledBitmap(photo, (photo.width / 24).coerceAtLeast(1), (photo.height / 24).coerceAtLeast(1), true)
-                canvas.drawBitmap(tiny, Matrix(photoMatrix).apply { preScale(photo.width / tiny.width.toFloat(), photo.height / tiny.height.toFloat()) },
-                    Paint(Paint.FILTER_BITMAP_FLAG))
-                canvas.drawColor((colors.background and 0x00FFFFFF) or 0x40000000)
-            }
+            photo != null && design.background == LockBackground.BLURRED ->
+                LockBlurRenderer.draw(canvas, photo, photoMatrix, design.blur, width, height, colors.background)
             design.background == LockBackground.GENERATED -> {
                 val colours = photo?.let {
                     val small = Bitmap.createScaledBitmap(it, 32, 32, true)
