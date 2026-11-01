@@ -1,0 +1,22 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
+    <!-- Used only by opt-in weather (Open-Meteo); nothing is sent while weather is off. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Used only when you set a wallpaper from Griha, or turn on the themed lock screen. -->
+    <uses-permission android:name="android.permission.SET_WALLPAPER"/>
+    <queries>
+        <intent><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent>
+        <!-- Icon packs announce themselves with these actions. -->
+        <intent><action android:name="org.adw.launcher.THEMES"/></intent>
+        <intent><action android:name="com.novalauncher.THEME"/></intent>
+    </queries>
+    <application android:label="@string/app_name" android:icon="@drawable/ic_launcher" android:roundIcon="@drawable/ic_launcher" android:theme="@style/AppTheme" android:allowBackup="false" android:fullBackupContent="false" android:dataExtractionRules="@xml/data_extraction_rules" android:supportsRtl="true" android:enableOnBackInvokedCallback="true" tools:targetApi="33">
+        <activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTask" android:windowSoftInputMode="adjustResize">
+            <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+            <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.HOME"/><category android:name="android.intent.category.DEFAULT"/></intent-filter>
+        </activity>
+        <!-- Serves an exported sticker PNG only to the app chosen in the share sheet. -->
+        <provider android:name=".StickerShareProvider" android:authorities="${applicationId}.stickers" android:exported="false" android:grantUriPermissions="true"/>
+        <!-- Asks Play services to fetch ML Kit's subject finder model ahead of first use. -->
+        <meta-data android:name="com.google.mlkit.vision.DEPENDENCIES" android:value="subject_segment"/>
+    </application>
+</manifest>

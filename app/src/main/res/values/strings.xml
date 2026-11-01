@@ -1,0 +1,24 @@
+<resources>
+    <string name="app_name">Griha</string>
+    <string name="search_apps">Search apps</string>
+    <string name="favorite_hint">Touch and hold an app to favorite it</string>
+    <string name="no_apps">No apps found</string>
+    <string name="app_unavailable">This app is no longer available</string>
+    <string name="search_home">Search apps or the web</string>
+    <string name="voice_search">Voice search</string>
+    <string name="sticker_unavailable">That picture can\'t be used. Choose another.</string>
+    <string name="cut_out_subject">Cut out the subject</string>
+    <string name="done">Done</string>
+    <string name="sticker_name">Sticker %1$d</string>
+    <string name="choose_favorites">Choose favorite apps</string>
+    <string name="favorites">Favorites</string>
+    <string name="all_apps">All apps</string>
+    <string name="home">Home</string>
+    <string name="save">Save</string>
+    <string name="cancel">Cancel</string>
+    <plurals name="app_count">
+        <item quantity="one">%d app</item>
+        <item quantity="other">%d apps</item>
+    </plurals>
+    <string name="at_time">At %1$s</string>
+</resources>
