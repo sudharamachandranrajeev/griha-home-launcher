@@ -155,7 +155,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 The app is plain Kotlin with views built in code: no XML layouts, no AndroidX. Lint treats warnings as errors.
 Release builds read a signing key from `.signing/release.properties`, which is never committed.
 
-To publish a version, raise `versionCode` and `versionName` in `app/build.gradle.kts`, then push a tag such as `v0.5.0`. The **Release** workflow tests, lints, signs and publishes `griha-launcher-<version>.apk` with its SHA-256 checksum. It needs four repository secrets: `GRIHA_KEYSTORE_BASE64`, `GRIHA_KEYSTORE_PASSWORD`, `GRIHA_KEY_ALIAS` and `GRIHA_KEY_PASSWORD`. Use the key your installed Griha was signed with, or Android refuses the update.
+To publish a version, raise `versionCode` and `versionName` in `app/build.gradle.kts`, then push a tag such as `v0.5.0`, or run the **Release** workflow by hand on `main` (it tags the version itself). Put the notes in `release-notes/<version>.md`. The **Release** workflow tests, lints, signs and publishes `griha-launcher-<version>.apk` with its SHA-256 checksum. It needs four repository secrets: `GRIHA_KEYSTORE_BASE64`, `GRIHA_KEYSTORE_PASSWORD`, `GRIHA_KEY_ALIAS` and `GRIHA_KEY_PASSWORD`. Use the key your installed Griha was signed with, or Android refuses the update.
 </details>
 
 ## Credits
