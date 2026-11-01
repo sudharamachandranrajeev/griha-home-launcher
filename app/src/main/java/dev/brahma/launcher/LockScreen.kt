@@ -67,7 +67,12 @@ data class LockDesign(
     val clearClock: Boolean = true,
     val style: LockStyle = LockStyle.PLAIN,
     /** How the blurred photo background looks. */
-    val blur: LockBlur = LockBlur()
+    val blur: LockBlur = LockBlur(),
+    /** Under a theme, the text and non-photo backgrounds take the theme's colours; photos stay as they are. */
+    val followTheme: Boolean = true,
+    /** A light touch of the theme's colour on the subject; the photo behind is never changed. */
+    val subjectLook: SubjectLook = SubjectLook.THEME,
+    val subjectAmount: Float = 0.35f
 ) {
     fun encode(): String = JSONObject().apply {
         put("custom", custom)
@@ -93,6 +98,9 @@ data class LockDesign(
         put("clear_clock", clearClock)
         put("fx", style.name)
         put("blur", blur.encode())
+        put("follow_theme", followTheme)
+        put("subject_look", subjectLook.name)
+        put("subject_amount", subjectAmount.toDouble())
     }.toString()
 
     companion object {
@@ -123,7 +131,10 @@ data class LockDesign(
                     daily = item.optBoolean("daily"),
                     clearClock = item.optBoolean("clear_clock", true),
                     style = LockStyle.entries.find { it.name == item.optString("fx") } ?: LockStyle.PLAIN,
-                    blur = LockBlur.decode(item.optJSONObject("blur"))
+                    blur = LockBlur.decode(item.optJSONObject("blur")),
+                    followTheme = item.optBoolean("follow_theme", true),
+                    subjectLook = SubjectLook.entries.find { it.name == item.optString("subject_look") } ?: SubjectLook.THEME,
+                    subjectAmount = item.optDouble("subject_amount", 0.35).toFloat().coerceIn(0f, 1f)
                 )
             } catch (_: org.json.JSONException) {
                 LockDesign()
@@ -143,17 +154,45 @@ object LockScreen {
 
     /** Everything the picture shows; a new picture is needed only when this changes. */
     fun key(settings: LauncherSettings, dark: Boolean, today: LocalDate, design: LockDesign = LockDesign(), sticker: Sticker? = null) =
-        listOf(today, settings.layout.name, dark, settings.name.trim(), design.encode(), sticker?.version ?: "").joinToString("|")
+        listOf(today, settings.layout.name, dark, settings.name.trim(), design.encode(), sticker?.version ?: "",
+            settings.activeTheme()?.let { "${it.id}@${it.version}" } ?: "").joinToString("|")
 
     fun render(
         context: Context, settings: LauncherSettings, dark: Boolean, width: Int, height: Int,
         design: LockDesign = LockDesign(), sticker: Sticker? = null
     ): Bitmap {
-        val colors = settings.layout.palette(dark)
+        val theme = settings.activeTheme()?.takeIf { !design.custom || design.followTheme }
+        val colors = if (theme != null) settings.homePalette(dark) else settings.layout.palette(dark)
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         val locale: Locale = context.resources.configuration.locales[0]
         val now = LocalDateTime.now()
+        if (!design.custom && theme != null) {
+            // The theme's own lock: its picture or its page, its lettering and colours.
+            val picture = theme.wallpaper(drawer = false)?.let { StickerFiles(context).load(it, maxOf(width, height)) }
+            if (picture != null) {
+                val scale = maxOf(width / picture.width.toFloat(), height / picture.height.toFloat())
+                canvas.drawBitmap(picture, Matrix().apply {
+                    setScale(scale, scale)
+                    postTranslate((width - picture.width * scale) / 2, (height - picture.height * scale) / 2)
+                }, Paint(Paint.FILTER_BITMAP_FLAG))
+            } else {
+                ThemeBackdrop.draw(canvas, android.graphics.Rect(0, 0, width, height), colors, theme, width / 400f)
+            }
+            // No band is cleared: a theme's page is calm enough for Android's clock, and a cut would break its art.
+            val font = theme.lockFont ?: LockFont.THIN
+            val face = if (font == LockFont.SCRIPT) context.resources.getFont(R.font.dancing_script) else Typeface.create(font.family, font.style)
+            if (picture != null) {
+                // The theme's picture may be dark in light mode or light in dark mode, so the text reads the picture.
+                val under = average(bitmap, height * 0.5f, height * 0.75f)
+                val ink = if (ThemeSpec.luminance(under) < 0.3f) Color.WHITE else 0xFF111111.toInt()
+                drawText(canvas, now, settings.name, locale, width, height, 0.6f, 1f, readable(theme.lockText(colors), under), ink,
+                    (ink and 0x00FFFFFF) or 0xCC000000.toInt(), face, true)
+            } else {
+                drawText(canvas, now, settings.name, locale, width, height, 0.6f, 1f, theme.lockText(colors), colors.ink, colors.muted, face, false)
+            }
+            return bitmap
+        }
         if (!design.custom) {
             canvas.drawColor(colors.background)
             motif(context, canvas, settings.layout, colors, width, height)
@@ -223,13 +262,16 @@ object LockScreen {
                 if (design.clearClock) clearBand(canvas, colors.background, width, height)
             }
         }
+        val (look, amount) = SubjectStyler.resolve(design, settings.activeTheme())
+        val tint = settings.activeTheme()?.lockTint(colors) ?: colors.accent
+        val styled: (Bitmap, Matrix) -> Unit = { art, at -> SubjectStyler.draw(canvas, art, at, look, amount, tint, colors) }
         val drawSubject: () -> Unit = drawSubject@{
             if (usable == null || photo == null) return@drawSubject
             if (fromPhoto && usable.subject) {
                 // The same photo's subject, lined up exactly over the background: the depth layer.
                 if (mask == null) return@drawSubject
                 val drawn = StickerArt.render(photo, StickerArt.softEdge(mask, usable.softness), usable.effects, crop = false)
-                canvas.drawBitmap(drawn.bitmap, photoMatrix, Paint(Paint.FILTER_BITMAP_FLAG))
+                styled(drawn.bitmap, photoMatrix)
             } else if (!fromPhoto) {
                 val art = files.load(files.drawn(usable.id)) ?: return@drawSubject
                 val target = width * design.subjectScale
@@ -237,10 +279,10 @@ object LockScreen {
                 val cx = width * design.subjectX
                 var cy = height * design.subjectY
                 if (design.clearClock) cy = maxOf(cy, clockBottom + art.height * artScale / 2)
-                canvas.drawBitmap(art, Matrix().apply {
+                styled(art, Matrix().apply {
                     setScale(artScale, artScale)
                     postTranslate(cx - target / 2, cy - art.height * artScale / 2)
-                }, Paint(Paint.FILTER_BITMAP_FLAG))
+                })
             }
         }
         val onImage = fromPhoto && (photo != null || design.background == LockBackground.GENERATED)
@@ -250,6 +292,11 @@ object LockScreen {
         val ink = if (light) 0xFF111111.toInt() else Color.WHITE
         val main = if (design.textColor != 0) design.textColor
             else if (design.style.colour != null) design.style.colour
+            // Under a theme the date is in its colour, shaded just enough to read on the photo.
+            else if (theme != null && onImage) readable(theme.lockText(colors),
+                if (depthText != null) average(bitmap, depthText.bandTop, depthText.bandBottom)
+                else average(bitmap, height * textTop - width * 0.16f, height * textTop + width * 0.18f))
+            else if (theme != null) theme.lockText(colors)
             else if (depthText != null && onImage) tintFrom(bitmap, depthText.bandTop, depthText.bandBottom)
             else if (onImage) ink else colors.accent
         val second = if (onImage) ink else colors.ink
@@ -271,10 +318,27 @@ object LockScreen {
         })
     }
 
-    private fun isLight(picture: Bitmap, top: Float, bottom: Float): Boolean {
+    /** The picture's average colour between [top] and [bottom]. */
+    private fun average(picture: Bitmap, top: Float, bottom: Float): Int {
         val y = top.toInt().coerceIn(0, picture.height - 1)
         val band = Bitmap.createBitmap(picture, 0, y, picture.width, (bottom - top).toInt().coerceIn(1, picture.height - y))
-        val average = Bitmap.createScaledBitmap(band, 1, 1, true).getPixel(0, 0)
+        return Bitmap.createScaledBitmap(band, 1, 1, true).getPixel(0, 0) or 0xFF000000.toInt()
+    }
+
+    /** [colour], lightened or deepened in steps until it reads on [under]. */
+    fun readable(colour: Int, under: Int): Int {
+        val towards = if (ThemeSpec.luminance(under) < 0.3f) Color.WHITE else Color.BLACK
+        var shade = colour or 0xFF000000.toInt()
+        var step = 0
+        while (ThemeSpec.contrast(shade, under) < ThemeSpec.MIN_CONTRAST && step < 10) {
+            step++
+            shade = mix(colour or 0xFF000000.toInt(), towards, step * 0.1f)
+        }
+        return shade
+    }
+
+    private fun isLight(picture: Bitmap, top: Float, bottom: Float): Boolean {
+        val average = average(picture, top, bottom)
         return (0.299f * Color.red(average) + 0.587f * Color.green(average) + 0.114f * Color.blue(average)) / 255f > 0.62f
     }
 

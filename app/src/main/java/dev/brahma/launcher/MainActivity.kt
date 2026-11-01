@@ -1086,7 +1086,7 @@ class MainActivity : Activity() {
                 },
                 onRemovePhoto = ::removeLockPhoto,
                 onApply = ::applyLockDesign,
-                onDone = ::showSettings))
+                onDone = ::showSettings), settings.activeTheme())
         designer = view
         show(view)
     }

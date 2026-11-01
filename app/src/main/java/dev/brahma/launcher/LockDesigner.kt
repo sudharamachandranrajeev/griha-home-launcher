@@ -37,7 +37,9 @@ class LockDesigner(
     private var design: LockDesign,
     private val stickers: List<Sticker>,
     private val screenAspect: Float,
-    private val actions: LockDesignerActions
+    private val actions: LockDesignerActions,
+    /** The downloaded theme in use, if any; its name and picks show in the theme section. */
+    private val theme: ThemeSpec? = null
 ) : ScrollView(context) {
     private val body = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
     private val picture = ImageView(context).apply {
@@ -106,7 +108,8 @@ class LockDesigner(
         controls.removeAllViews()
         toggle("Use my design", design.custom) { change(design.copy(custom = it), rebuild = true) }
         if (!design.custom) {
-            controls.addView(context.label("Off: the lock screen follows your home layout and colours.", 14f, colors.muted))
+            controls.addView(context.label(if (theme != null) "Off: the lock screen wears ${theme.name}: its picture, lettering and colours."
+                else "Off: the lock screen follows your home layout and colours.", 14f, colors.muted))
             post { scrollTo(0, keep) }
             return
         }
@@ -129,6 +132,7 @@ class LockDesigner(
             if (design.photoId != null) addView(context.action("Remove photo", colors.accent, actions.onRemovePhoto))
         })
         toggle("Keep clear of Android's clock", design.clearClock) { change(design.copy(clearClock = it)) }
+        themeControls()
         section("Background")
         choices(LockBackground.entries.map { it.title }, design.background.ordinal) { change(design.copy(background = LockBackground.entries[it]), rebuild = true) }
         if (design.background == LockBackground.GENERATED) {
@@ -176,6 +180,25 @@ class LockDesigner(
             controls.addView(context.slider("Top to bottom", design.subjectY, colors) { change(design.copy(subjectY = it)) })
         }
         post { scrollTo(0, keep) }
+    }
+
+    // The theme on the lock screen: its colours, and a gentle styling of the subject. Photos are never changed.
+    private fun themeControls() {
+        section("Theme")
+        if (theme != null) {
+            toggle("Use ${theme.name}'s colours for the text and plain backgrounds", design.followTheme) { change(design.copy(followTheme = it)) }
+        } else {
+            controls.addView(context.label("No downloaded theme is in use, so the subject is styled in your home accent.", 14f, colors.muted))
+        }
+        controls.addView(context.label("Subject styling: a light touch of the theme's colour on the person or object in your photo. " +
+            "The photo itself stays as it is.", 14f, colors.muted))
+        val pick = theme?.lockSubject?.title?.let { "The theme's pick ($it)" } ?: "The theme's pick (untouched)"
+        choices(SubjectLook.entries.map { if (it == SubjectLook.THEME) pick else it.title }, design.subjectLook.ordinal) {
+            change(design.copy(subjectLook = SubjectLook.entries[it]), rebuild = true)
+        }
+        if (design.subjectLook != SubjectLook.THEME && design.subjectLook != SubjectLook.NONE) {
+            controls.addView(context.slider("Strength: subtle to clear", design.subjectAmount, colors) { change(design.copy(subjectAmount = it)) })
+        }
     }
 
     // The blurred photo: a style and the sliders that matter for it.

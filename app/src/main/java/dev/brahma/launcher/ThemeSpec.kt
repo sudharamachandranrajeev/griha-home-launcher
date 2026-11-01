@@ -29,7 +29,9 @@ object ThemeEngine {
         "backdrop.blob", "backdrop.chrome", "decor.peel",
         "wall.picture", "wall.motion",
         "touch.bloom", "touch.ring", "touch.glow", "touch.ripple", "touch.embers",
-        "headings.style", "font.system"
+        "headings.style", "font.system",
+        // Griha 0.7.0: the theme dresses the lock screen and, gently, the photo's subject.
+        "lock.theme", "lock.subject"
     )
 
     /** The theme in use, loaded once when settings change; null draws the built-in finish. */
@@ -71,6 +73,21 @@ class ThemeSpec private constructor(private val json: JSONObject, val dir: File?
         listOf("default", "hover", "focus", "pressed", "busy", "done").mapNotNull { key -> s.optString(key).takeIf { it.isNotEmpty() } }
             .map { colour(it, c) }
     } ?: emptyList()
+
+    private val lock: JSONObject = json.optJSONObject("lock") ?: JSONObject()
+
+    /** How the theme styles a lock photo's subject; null leaves it untouched. */
+    val lockSubject: SubjectLook? = SubjectLook.ofTheme(lock.optString("subject"))
+    /** How strongly, 0 to 1; themes keep it subtle. */
+    val lockAmount: Float = lock.optDouble("amount", 0.35).toFloat().coerceIn(0f, 1f)
+    /** The lettering for the lock date: thin, heavy, bold, condensed, serif or script. */
+    val lockFont: LockFont? = LockFont.entries.find { it.name.equals(lock.optString("font"), ignoreCase = true) }
+
+    /** The lock date's colour; the accent unless the theme names another. */
+    fun lockText(c: Palette): Int = lock.optString("text").takeIf { it.isNotEmpty() }?.let { colour(it, c) } ?: c.accent
+
+    /** The colour the subject is styled in; the accent unless the theme names another. */
+    fun lockTint(c: Palette): Int = lock.optString("tint").takeIf { it.isNotEmpty() }?.let { colour(it, c) } ?: c.accent
 
     /** The tap light: bloom, ring, glow, ripple, embers or none. */
     val pulse: String = json.optJSONObject("touch")?.optString("pulse", "ring") ?: "ring"
@@ -240,6 +257,8 @@ class ThemeSpec private constructor(private val json: JSONObject, val dir: File?
 object ThemeBackdrop {
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
+    // Synchronized: the lock screen draws on its own thread with the same paint.
+    @Synchronized
     fun draw(canvas: Canvas, b: Rect, c: Palette, theme: ThemeSpec, density: Float) {
         val w = b.width().toFloat()
         val h = b.height().toFloat()

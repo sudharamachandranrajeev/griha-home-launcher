@@ -74,6 +74,13 @@ preview.webp        a picture for the catalogue
    catalogue theme. A new feature is then a two-step change: add it to the engine, release, then
    publish the theme.
 
+## The lock screen (Griha 0.7.0)
+
+A theme may add a `lock` section: `subject` (wash, duotone, rim or halo), `amount` (0 to 1, kept subtle),
+`tint` and `text` colour tokens, and `font`. Features `lock.theme` and `lock.subject` are listed under
+`prefers`, so Griha 0.6.0 still installs the theme and simply ignores the section. The user's lock photo
+is never changed; only its cut-out subject is styled, and the user can pick another look or none.
+
 ## Downloading and safety
 
 - **Catalogue:** `index.json` from a griha-themes release lists each theme's id, version, engine,
