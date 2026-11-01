@@ -1,30 +1,31 @@
-<div align="center">
+<h1 align="center">
+  <br>
+  <a href="https://github.com/sudharamachandranrajeev/griha"><img src="branding/griha-512.png" alt="Griha" width="140"></a>
+  <br>
+  Griha
+  <br>
+</h1>
 
-<h1>Griha</h1>
+<h4 align="center">A calm, private home screen for your Android phone, with eight layouts, six 3D themes, a themed lock screen and stickers cut from your photos.</h4>
 
-<h4>A calm, private home screen for Android, with eight looks, a themed lock screen and stickers cut from your photos.</h4>
-
-<p>
-  <a href="https://github.com/sudharamachandranrajeev/griha/releases"><img alt="Releases" src="https://img.shields.io/github/v/release/sudharamachandranrajeev/griha?include_prereleases&label=release"></a>
-  <img alt="Android 8.0 and later" src="https://img.shields.io/badge/Android-8.0%2B-3ddc84">
-  <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/licence-MIT-blue"></a>
-  <img alt="Part of BrahmaOS" src="https://img.shields.io/badge/part%20of-BrahmaOS-8a6512">
+<p align="center">
+  <a href="https://github.com/sudharamachandranrajeev/griha/releases"><img src="https://img.shields.io/github/v/release/sudharamachandranrajeev/griha?include_prereleases&color=8a6512&label=download" alt="Latest release"></a>
+  <img src="https://img.shields.io/badge/works%20on-Android%208.0%2B-555" alt="Works on Android 8.0 and later">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/licence-MIT-2e7d32" alt="Licence MIT"></a>
+  <a href="https://github.com/sudharamachandranrajeev/brahma"><img src="https://img.shields.io/badge/part%20of-Brahma-8a5cf6" alt="Part of Brahma"></a>
 </p>
 
-<p>
+<p align="center">
   <a href="#-what-it-does">What it does</a> •
   <a href="#-get-started">Get started</a> •
   <a href="#-how-it-works">How it works</a> •
-  <a href="#-your-data">Your data</a> •
   <a href="#-faq-and-troubleshooting">FAQ</a> •
   <a href="#%EF%B8%8F-for-developers">For developers</a>
 </p>
 
-</div>
-
-Griha (Sanskrit for "home") replaces your phone's home screen. It is for people who want a quiet,
-good-looking home screen that does not track them. It is part of BrahmaOS. Status: **beta**, used daily
-on one phone. One honest limit: it does not host Android widgets.
+**Griha** (गृह, "home") is a home screen launcher: it replaces the screen you see when you press Home
+on your phone. It is for people who want a quiet, good-looking home screen that does not track them.
+Status: **beta (0.5)**, used daily on one phone. One honest limit: it does not host Android widgets.
 
 ## ✨ What it does
 
@@ -96,7 +97,7 @@ flowchart LR
 - Settings, stickers and Luxe data stay in Griha's private storage on the phone.
 - Swipes only count once home or the app list is scrolled to its edge, so they never fight scrolling.
 
-## 🔒 Your data
+### 🔒 Your data
 
 - **Stays on the phone:** your name, place, favourites, stickers, imported wallpapers, Luxe schedule and focus history.
 - **Leaves the phone only when weather is on:** the place you typed and its coordinates go to [Open-Meteo](https://open-meteo.com) about every 30 minutes while home is open. No location permission or device ID is used.
@@ -158,13 +159,23 @@ Release builds read a signing key from `.signing/release.properties`, which is n
 To publish a version, raise `versionCode` and `versionName` in `app/build.gradle.kts`, then push a tag such as `v0.5.0`, or run the **Release** workflow by hand on `main` (it tags the version itself). Put the notes in `release-notes/<version>.md`. The **Release** workflow tests, lints, signs and publishes `griha-launcher-<version>.apk` with its SHA-256 checksum. It needs four repository secrets: `GRIHA_KEYSTORE_BASE64`, `GRIHA_KEYSTORE_PASSWORD`, `GRIHA_KEY_ALIAS` and `GRIHA_KEY_PASSWORD`. Use the key your installed Griha was signed with, or Android refuses the update.
 </details>
 
-## Credits
+## Related
 
-Fonts under the SIL Open Font License: Cinzel, Dancing Script and UnifrakturCook (see `licenses/`).
-Weather from [Open-Meteo](https://open-meteo.com).
+Griha is the home screen of the **Brahma** family of private apps.
+
+| App | What it does |
+| --- | --- |
+| [brahma](https://github.com/sudharamachandranrajeev/brahma) | The shared core and the all-in-one app |
+| [bahya-nireekshana](https://github.com/sudharamachandranrajeev/bahya-nireekshana) | See how much internet data you use |
+| [bhandara](https://github.com/sudharamachandranrajeev/bhandara) | See how full your disks are and what fills them |
 
 ## License
 
 [MIT](LICENSE)
+
+Fonts under the SIL Open Font License: Cinzel, Dancing Script and UnifrakturCook (see `licenses/`).
+Weather from [Open-Meteo](https://open-meteo.com).
+
+---
 
 > GitHub [@sudharamachandranrajeev](https://github.com/sudharamachandranrajeev)
