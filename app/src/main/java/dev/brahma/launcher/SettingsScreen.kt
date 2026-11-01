@@ -32,18 +32,29 @@ class SettingsActions(
     val onCustomiseLuxe: () -> Unit,
     /** Opens one category's page, or the list of categories for null. */
     val onCategory: (SettingsCategory?) -> Unit,
-    val onDone: () -> Unit
+    val onDone: () -> Unit,
+    val updates: UpdateActions
+)
+
+class UpdateActions(
+    /** Fetches the release list; the callback runs on the main thread with releases or an error message. */
+    val check: (betas: Boolean, done: (List<Release>?, String?) -> Unit) -> Unit,
+    val install: (Release) -> Unit,
+    val rollBack: (Release) -> Unit,
+    val backUp: () -> Unit,
+    val restore: () -> Unit
 )
 
 /** The groups settings are sorted into; the first settings page lists them and each opens its own page. */
 enum class SettingsCategory(val title: String, val summary: String) {
     PROFILE("You and weather", "Name, place, footer line, weather"),
     HOME("Home screen", "Layout, Luxe home, shortcuts, clock"),
-    LOOK("Look and theme", "Light or dark, style, wallpapers"),
+    LOOK("Look and theme", "Light or dark, surface finish, wallpapers"),
     GESTURES("Gestures and motion", "Swipe distance, all-apps animation, effects"),
     ICONS("App icons", "Icon style, shape, plate, icon packs"),
     LOCK("Lock screen", "Themed lock wallpaper and its design"),
     STICKERS("Stickers", "Cut-out photos on home"),
+    UPDATES("Updates and versions", "Update, roll back, back up settings"),
     ANDROID("Android", "Default home app")
 }
 
@@ -65,13 +76,14 @@ class SettingsScreen(
     private val accent = colors.accent
     private val body = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
     private var shortcutSummary: android.widget.TextView? = null
-    private val softStyle = current.uiStyle == UiStyle.SOFT
-    // Rows go into the current section; in the soft style each section is a raised card.
+    private val softStyle = current.uiStyle != UiStyle.FLAT
+    // Rows go into the current section; outside the flat finish each section is a raised card.
     private var group = body
+    private var sections = 0
 
     init {
         isFillViewport = true
-        setBackgroundColor(colors.background)
+        finishBackdrop(colors)
         body.setPadding(context.dp(24), context.dp(20), context.dp(24), context.dp(32))
         addView(body)
         body.addView(LinearLayout(context).apply {
@@ -93,6 +105,7 @@ class SettingsScreen(
             SettingsCategory.ICONS -> buildIcons()
             SettingsCategory.LOCK -> buildLock()
             SettingsCategory.STICKERS -> buildStickers()
+            SettingsCategory.UPDATES -> buildUpdates()
             SettingsCategory.ANDROID -> {
                 section("Android")
                 group.addView(context.action("Choose default home app", accent, actions.onHomeApp))
@@ -107,7 +120,7 @@ class SettingsScreen(
             minimumHeight = context.dp(64)
             gravity = android.view.Gravity.CENTER_VERTICAL
             setPadding(context.dp(18), context.dp(12), context.dp(18), context.dp(12))
-            if (softStyle) soft(colors, context.dp(18).toFloat())
+            if (softStyle) depth(colors, context.dp(18).toFloat(), tint = if (colors.finish == UiStyle.GLASS) Depth.glassTints[entry.ordinal % 3] else null)
             else background = rounded(colors.surface, context.dp(14).toFloat(), colors.secondary, context.dp(1))
             addView(context.label(entry.title, 17f, ink, Typeface.BOLD))
             addView(context.label(entry.summary, 13f, muted))
@@ -161,8 +174,12 @@ class SettingsScreen(
         section("Theme")
         choices(ThemeMode.entries.map { it.title }, current.theme.ordinal) { update(current.copy(theme = ThemeMode.entries[it])) }
 
-        section("Style")
+        section("Surface finish")
         choices(UiStyle.entries.map { it.title }, current.uiStyle.ordinal) { update(current.copy(uiStyle = UiStyle.entries[it])) }
+        group.addView(context.label("Each finish is a whole theme: its colours, page, corners and the way cards, buttons, " +
+            "search fields, switches and sliders are lit, with their shadows, glow and edges.", 14f, muted))
+        toggle("Use the finish's colours on home", current.finishColours) { update(current.copy(finishColours = it)) }
+        group.addView(context.label("Off keeps each home layout's own colours, still drawn in the finish. Luxe always keeps its gold.", 14f, muted))
 
         section("Wallpaper")
         toggle("Show my wallpaper behind home", current.wallpaper) { update(current.copy(wallpaper = it)) }
@@ -238,6 +255,72 @@ class SettingsScreen(
         })
     }
 
+    private fun buildUpdates() {
+        val installed = Updates.installedVersion(context)
+        section("This phone")
+        group.addView(context.label("Griha $installed", 17f, ink, Typeface.BOLD))
+        group.addView(context.label("Griha looks for new versions only when you tap Check. It then asks GitHub for the list " +
+            "of releases of ${Updates.REPO}; an installer is downloaded only when you choose one, and it must match its " +
+            "published SHA-256 checksum and Griha's own signing key.", 14f, muted))
+        var betas = false
+        toggle("Include beta versions", false) { betas = it }
+        val status = context.label("", 14f, muted)
+        val list = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+        group.addView(context.action("Check for updates", accent) {
+            status.text = context.getString(R.string.checking_updates)
+            list.removeAllViews()
+            actions.updates.check(betas) { releases, error ->
+                when {
+                    error != null -> status.text = error
+                    releases.isNullOrEmpty() -> status.text = context.getString(R.string.no_releases)
+                    else -> {
+                        val newest = releases.first().version
+                        status.text = if (Updates.compare(newest, installed) > 0) "Griha $newest is ready to install." else "You have the newest version."
+                        releases.forEach { list.addView(releaseCard(it, installed)) }
+                    }
+                }
+            }
+        })
+        group.addView(status)
+
+        section("Versions")
+        group.addView(list)
+        group.addView(context.label("Rolling back: Android installs an older version only after the newer one is removed. " +
+            "Griha saves your settings and the older installer to files you choose, then opens Android's page to remove it. " +
+            "Install the saved file, make Griha your home app again and restore the settings below.", 13f, muted))
+
+        section("Settings backup")
+        group.addView(context.label("Saves your name, layout, theme, favourites, shortcuts, Luxe cards and lock design to a file. " +
+            "Sticker and wallpaper pictures are not included.", 14f, muted))
+        group.addView(LinearLayout(context).apply {
+            addView(context.action("Back up settings", accent, actions.updates.backUp))
+            addView(context.action("Restore settings", accent, actions.updates.restore))
+        })
+    }
+
+    // One release: version, date and notes, with Install for newer versions and Roll back for older ones.
+    private fun releaseCard(release: Release, installed: String) = LinearLayout(context).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(context.dp(16), context.dp(12), context.dp(16), context.dp(12))
+        depth(colors, context.dp(16).toFloat(), Role.KEY, border = colors.secondary)
+        layoutParams = LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, context.dp(8), 0, context.dp(8)) }
+        val order = Updates.compare(release.version, installed)
+        val tags = listOfNotNull(when {
+            order > 0 -> "newer"
+            order == 0 -> "installed"
+            else -> "older"
+        }, "beta".takeIf { release.prerelease }, release.published.takeIf { it.isNotEmpty() })
+        addView(context.label("Griha ${release.version}", 16f, ink, Typeface.BOLD))
+        addView(context.label(tags.joinToString(" · "), 12f, accent, Typeface.BOLD))
+        val notes = release.notes.lines().map { it.trim() }.filter { it.isNotEmpty() && !it.startsWith("#") }.take(3)
+        if (notes.isNotEmpty()) addView(context.label(notes.joinToString("\n"), 13f, muted).apply { setPadding(0, context.dp(4), 0, 0) })
+        when {
+            release.apkUrl == null -> addView(context.label("No installer attached to this release.", 13f, muted))
+            order > 0 -> addView(context.action("Install update", accent) { actions.updates.install(release) })
+            order < 0 -> addView(context.action("Roll back to this version", accent) { actions.updates.rollBack(release) })
+        }
+    }
+
     // One library sticker: picture, on/off switch, edit and delete.
     private fun stickerRow(index: Int, sticker: Sticker, thumbnail: Bitmap?) {
         val name = context.getString(R.string.sticker_name, index + 1)
@@ -253,7 +336,7 @@ class SettingsScreen(
                 textSize = 16f
                 minHeight = context.dp(48)
                 isChecked = sticker.enabled
-                if (softStyle) accent(colors)
+                accent(colors)
                 setPadding(context.dp(12), 0, 0, 0)
                 setOnCheckedChangeListener { _: CompoundButton, value: Boolean -> actions.onToggleSticker(sticker.id, value) }
             }, LinearLayout.LayoutParams(0, -2, 1f))
@@ -277,11 +360,20 @@ class SettingsScreen(
 
     private fun section(title: String) {
         body.addView(View(context), LinearLayout.LayoutParams(1, context.dp(if (softStyle) 18 else 24)))
-        body.addView(context.label(title.uppercase(), 12f, accent, Typeface.BOLD).apply { setPadding(context.dp(4), 0, 0, context.dp(6)) })
+        val finish = colors.finish
+        body.addView(context.label(if (finish.headingCaps) title.uppercase() else title, if (finish.headingCaps) 12f else 15f,
+            if (finish.headingCaps) accent else ink, Typeface.BOLD).apply {
+            letterSpacing = finish.headingSpacing
+            setPadding(context.dp(4), 0, 0, context.dp(6))
+        })
+        // The styleguide underlines each section title with a hairline.
+        if (finish == UiStyle.LAYERED) body.addView(View(context).apply { setBackgroundColor(tone(ink, 0.25f)) },
+            LinearLayout.LayoutParams(-1, context.dp(1)).apply { setMargins(context.dp(4), 0, context.dp(4), context.dp(10)) })
         if (!softStyle) return
+        val tint = if (finish == UiStyle.GLASS) Depth.glassTints[sections++ % Depth.glassTints.size] else null
         group = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            soft(colors, context.dp(20).toFloat())
+            depth(colors, context.dp(20).toFloat(), tint = tint)
             setPadding(context.dp(16), context.dp(8), context.dp(16), context.dp(10))
         }
         body.addView(group, LinearLayout.LayoutParams(-1, -2).apply { setMargins(context.dp(2), 0, context.dp(2), context.dp(4)) })
@@ -294,7 +386,12 @@ class SettingsScreen(
             setText(value)
             setSingleLine(true)
             inputType = InputType.TYPE_CLASS_TEXT or flags
-            minHeight = context.dp(48)
+            minHeight = context.dp(52)
+            setTextColor(ink)
+            setHintTextColor(muted)
+            depth(colors, context.dp(16).toFloat(), Role.FIELD)
+            setPadding(context.dp(16), context.dp(12), context.dp(16), context.dp(12))
+            layoutParams = LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, context.dp(6), 0, context.dp(6)) }
             addTextChangedListener(object : TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
                 override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = Unit
@@ -312,7 +409,7 @@ class SettingsScreen(
                 textSize = 16f
                 minHeight = context.dp(48)
                 isChecked = index == selected
-                if (softStyle) accent(colors)
+                accent(colors)
                 setOnClickListener { onSelect(index) }
             })
         }
@@ -324,7 +421,7 @@ class SettingsScreen(
         textSize = 16f
         minHeight = context.dp(48)
         isChecked = checked
-        if (softStyle) accent(colors)
+        accent(colors)
         setOnCheckedChangeListener { _: CompoundButton, value: Boolean -> onToggle(value) }
         group.addView(this)
     }

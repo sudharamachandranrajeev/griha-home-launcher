@@ -121,8 +121,8 @@ class LuxeHome(
     private fun card() = LinearLayout(context).apply {
         orientation = VERTICAL
         setPadding(dp(18), dp(16), dp(18), dp(16))
-        background = rounded(colors.surface, dp(20).toFloat(), (colors.accent and 0x00FFFFFF) or 0x55000000, dp(1))
-        layoutParams = LayoutParams(-1, -2).apply { setMargins(0, dp(6), 0, dp(6)) }
+        depth(colors, dp(20).toFloat(), border = (colors.accent and 0x00FFFFFF) or 0x55000000)
+        layoutParams = LayoutParams(-1, -2).apply { setMargins(0, dp(8), 0, dp(8)) }
     }
 
     private fun heading(value: String) = TextView(context).apply {
@@ -497,7 +497,7 @@ class LuxeHome(
     private fun nav() = LinearLayout(context).apply {
         gravity = Gravity.CENTER_VERTICAL
         setPadding(dp(8), dp(8), dp(8), dp(8))
-        background = rounded(colors.surface, dp(32).toFloat(), (colors.accent and 0x00FFFFFF) or 0x55000000, dp(1))
+        depth(colors, dp(32).toFloat(), border = (colors.accent and 0x00FFFFFF) or 0x55000000)
         layoutParams = LayoutParams(-1, -2).apply { setMargins(0, dp(14), 0, 0) }
         fun item(label: String, onTap: () -> Unit) = addView(context.action(label, colors.ink, onTap).apply {
             gravity = Gravity.CENTER

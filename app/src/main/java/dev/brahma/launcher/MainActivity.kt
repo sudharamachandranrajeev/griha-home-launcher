@@ -178,6 +178,35 @@ class MainActivity : Activity() {
             return
         }
         when (requestCode) {
+            BACKUP_SETTINGS, ROLLBACK_SETTINGS -> {
+                val ok = writeTo(uri) { it.write(SettingsBackup.export(this).toByteArray()) }
+                Toast.makeText(this, if (ok) "Settings saved" else "Couldn't save the settings", Toast.LENGTH_SHORT).show()
+                if (ok && requestCode == ROLLBACK_SETTINGS) pendingRollback?.let { createDocument(it.name, "application/vnd.android.package-archive", ROLLBACK_INSTALLER) }
+            }
+            ROLLBACK_INSTALLER -> {
+                val apk = pendingRollback ?: return
+                val ok = writeTo(uri) { output -> apk.inputStream().use { it.copyTo(output) } }
+                if (!ok) return Toast.makeText(this, "Couldn't save the installer", Toast.LENGTH_SHORT).show()
+                pendingRollback = null
+                AlertDialog.Builder(this).setTitle("Remove this version")
+                    .setMessage("Settings and installer are saved. Android's page for Griha opens next: tap Uninstall. Then open the " +
+                        "saved installer from your Files app, make Griha your home app again, and in Settings, Updates and versions, " +
+                        "tap Restore settings.")
+                    .setPositiveButton("Open Android's page") { _, _ ->
+                        open(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
+                    }
+                    .setNegativeButton(R.string.cancel, null).show()
+            }
+            RESTORE_SETTINGS -> {
+                val json = try { contentResolver.openInputStream(uri)?.use { it.bufferedReader().readText() } } catch (_: Exception) { null }
+                if (json == null || !SettingsBackup.import(this, json)) {
+                    return Toast.makeText(this, "That file isn't a Griha settings backup", Toast.LENGTH_LONG).show()
+                }
+                Toast.makeText(this, "Settings restored", Toast.LENGTH_SHORT).show()
+                settings = store.load()
+                settingsCategory = null
+                recreate()
+            }
             PICK_STICKER -> addSticker(uri)
             PICK_LOCK_PHOTO -> setLockPhoto(uri)
             EXPORT_STICKER -> {
@@ -213,6 +242,9 @@ class MainActivity : Activity() {
 
     private fun renderHome(arrange: Boolean = false) {
         val fromDrawer = screen == Screen.DRAWER
+        // The all-apps search keeps the keyboard up; left alone, the keyboard and the space it held
+        // linger over the new home as a fading ghost for a few seconds after all apps closes.
+        if (fromDrawer) dismissKeyboard()
         screen = Screen.HOME
         settingsCategory = null
         arranging = arrange
@@ -287,7 +319,28 @@ class MainActivity : Activity() {
             onWallpaper = ::showWallpapers,
             onCustomiseLuxe = ::customiseLuxe,
             onCategory = { settingsCategory = it; showSettings() },
-            onDone = ::renderHome)))
+            onDone = ::renderHome,
+            updates = UpdateActions(
+                check = { betas, done ->
+                    thread(name = "update-check") {
+                        val result = try { Updates.fetch(betas) to null } catch (e: Exception) {
+                            null to "Couldn't reach GitHub. Check your connection and try again. (${e.message ?: e.javaClass.simpleName})"
+                        }
+                        runOnUiThread { done(result.first, result.second) }
+                    }
+                },
+                install = ::installRelease,
+                rollBack = ::rollBack,
+                backUp = { createDocument("griha-settings.json", "application/json", BACKUP_SETTINGS) },
+                restore = {
+                    @Suppress("DEPRECATION")
+                    try {
+                        startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
+                            .setType("*/*"), RESTORE_SETTINGS)
+                    } catch (_: ActivityNotFoundException) {
+                        Toast.makeText(this, R.string.app_unavailable, Toast.LENGTH_SHORT).show()
+                    }
+                }))))
     }
 
     /** Puts [root] on screen; with [drawerMotion], all apps opens or closes over home in that way. */
@@ -314,7 +367,7 @@ class MainActivity : Activity() {
             window.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
         } else {
             window.clearFlags(WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
-            window.setBackgroundDrawable(ColorDrawable(settings.layout.palette(appliedDark).background))
+            window.setBackgroundDrawable(ColorDrawable(settings.homePalette(appliedDark).background))
         }
         val frame = findViewById<ViewGroup>(android.R.id.content)
         val outgoing = frame.getChildAt(0)
@@ -408,8 +461,8 @@ class MainActivity : Activity() {
         val fromHome = screen == Screen.HOME
         screen = Screen.DRAWER
         home = null
-        val view = DrawerScreen(this, settings.layout.palette(appliedDark), settings.iconKit(settings.layout.palette(appliedDark)), settings.wallpaper,
-            Effects.enabled(settings), settings.uiStyle == UiStyle.SOFT, shownApps(),
+        val view = DrawerScreen(this, settings.homePalette(appliedDark), settings.iconKit(settings.homePalette(appliedDark)), settings.wallpaper,
+            Effects.enabled(settings), shownApps(),
             store.favorites(), "", settings.swipeDistance, DrawerActions(
                 onApp = ::launch,
                 onAppOptions = ::appOptions,
@@ -420,6 +473,96 @@ class MainActivity : Activity() {
             view.search.requestFocus()
             getSystemService(InputMethodManager::class.java)?.showSoftInput(view.search, InputMethodManager.SHOW_IMPLICIT)
         }
+    }
+
+    // ---- Updates ----
+
+    /** The older installer waiting to be saved during a rollback. */
+    private var pendingRollback: java.io.File? = null
+
+    private fun createDocument(name: String, type: String, request: Int) {
+        @Suppress("DEPRECATION")
+        try {
+            startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
+                .setType(type).putExtra(Intent.EXTRA_TITLE, name), request)
+        } catch (_: ActivityNotFoundException) {
+            Toast.makeText(this, R.string.app_unavailable, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun writeTo(uri: Uri, write: (java.io.OutputStream) -> Unit) = try {
+        contentResolver.openOutputStream(uri, "wt")?.use(write) != null
+    } catch (_: Exception) {
+        false
+    }
+
+    /** Downloads and checks [release]'s installer, then [then] gets it on the main thread. */
+    private fun fetchInstaller(release: Release, then: (java.io.File) -> Unit) {
+        val progress = android.widget.ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            max = 100
+            setPadding(dp(24), dp(16), dp(24), 0)
+        }
+        val dialog = AlertDialog.Builder(this).setTitle("Downloading Griha ${release.version}").setView(progress)
+            .setCancelable(false).show()
+        thread(name = "update-download") {
+            val result: Pair<java.io.File?, String?> = try {
+                val file = Updates.download(this, release) { percent -> runOnUiThread { progress.progress = percent } }
+                val sum = Updates.sha256(file)
+                when {
+                    release.sha256 == null -> null to "This release has no published checksum, so Griha won't install it."
+                    sum != release.sha256 -> null to "The download doesn't match its published checksum and was thrown away."
+                    Updates.sameSigner(this, file) == false -> null to "This installer isn't signed with the same key as your Griha, so Android would refuse it."
+                    else -> file to null
+                }.also { (ok, _) -> if (ok == null) file.delete() }
+            } catch (e: Exception) {
+                null to "Download failed: ${e.message ?: e.javaClass.simpleName}"
+            }
+            runOnUiThread {
+                dialog.dismiss()
+                val file = result.first
+                if (file == null) AlertDialog.Builder(this).setTitle("Not installed").setMessage(result.second)
+                    .setPositiveButton(android.R.string.ok, null).show()
+                else then(file)
+            }
+        }
+    }
+
+    private fun installRelease(release: Release) {
+        if (!packageManager.canRequestPackageInstalls()) {
+            Toast.makeText(this, "Allow Griha to install updates, then tap Install again", Toast.LENGTH_LONG).show()
+            return open(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName")))
+        }
+        fetchInstaller(release) { apk ->
+            try {
+                Updates.install(this, apk)
+                Toast.makeText(this, "Installing Griha ${release.version}. Home restarts when it is done.", Toast.LENGTH_LONG).show()
+            } catch (e: Exception) {
+                Toast.makeText(this, "Couldn't start the install: ${e.message}", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    // Android refuses to install an older version over a newer one, so a rollback saves settings and
+    // the installer to files first, then the newer version is removed and the older one installed.
+    private fun rollBack(release: Release) {
+        AlertDialog.Builder(this).setTitle("Roll back to Griha ${release.version}?")
+            .setMessage("Android installs an older version only after the newer one is removed, which also clears Griha's " +
+                "settings. Griha will:\n\n1. Download and check version ${release.version}.\n2. Save your settings to a file you choose." +
+                "\n3. Save the installer to a file you choose.\n4. Open Android's page to remove this version.\n\nThen install the " +
+                "saved file and restore your settings in Settings, Updates and versions. Sticker and wallpaper pictures are not kept.")
+            .setPositiveButton("Start") { _, _ ->
+                fetchInstaller(release) { apk ->
+                    pendingRollback = apk
+                    createDocument("griha-settings.json", "application/json", ROLLBACK_SETTINGS)
+                }
+            }
+            .setNegativeButton(R.string.cancel, null).show()
+    }
+
+    private fun dismissKeyboard() {
+        val focused = currentFocus
+        getSystemService(InputMethodManager::class.java)?.hideSoftInputFromWindow((focused ?: window.decorView).windowToken, 0)
+        focused?.clearFocus()
     }
 
     // ---- Stickers ----
@@ -926,6 +1069,10 @@ class MainActivity : Activity() {
         const val EXPORT_STICKER = 2
         const val PICK_LOCK_PHOTO = 3
         const val PICK_WALLPAPERS = 4
+        const val BACKUP_SETTINGS = 5
+        const val RESTORE_SETTINGS = 6
+        const val ROLLBACK_SETTINGS = 7
+        const val ROLLBACK_INSTALLER = 8
         const val DRAWN_SIDE = 1024
     }
 }

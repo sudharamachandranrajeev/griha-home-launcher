@@ -64,7 +64,7 @@ class StickerEditor(
 
     init {
         orientation = VERTICAL
-        setBackgroundColor(colors.background)
+        finishBackdrop(colors)
         setPadding(dp(16), dp(12), dp(16), 0)
         addView(LinearLayout(context).apply {
             gravity = android.view.Gravity.CENTER_VERTICAL
@@ -196,7 +196,7 @@ class StickerEditor(
         adding = add
         showPanel()
     }.apply {
-        if (adding == add) background = rounded(colors.accent, dp(20).toFloat())
+        if (adding == add) depth(colors, dp(20).toFloat(), Role.PRIMARY)
         contentDescription = if (adding == add) "$title, chosen" else title
     }
 

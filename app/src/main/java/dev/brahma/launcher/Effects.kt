@@ -115,6 +115,8 @@ object DrawerTransition {
      */
     fun swap(frame: ViewGroup, outgoing: View, incoming: View, motion: DrawerMotion, opening: Boolean) {
         val mover = if (opening) incoming else outgoing
+        // The screen that leaves drops focus at once, so no keyboard, cursor or glow outlives it.
+        outgoing.findFocus()?.clearFocus()
         if (opening) frame.addView(incoming) else frame.addView(incoming, 0)
         val travel = frame.height.takeIf { it > 0 }?.toFloat() ?: frame.resources.displayMetrics.heightPixels.toFloat()
         fun away(view: View) {
@@ -125,7 +127,9 @@ object DrawerTransition {
                 DrawerMotion.NONE -> Unit
             }
         }
-        val animation = mover.animate().setDuration(DURATION)
+        // Drawn as one layer while it moves: the shadows and glow inside it move with it in one
+        // piece and are released with the layer, instead of being redrawn and left behind.
+        val animation = mover.animate().setDuration(DURATION).withLayer()
         if (opening) {
             away(mover)
             animation.translationY(0f).alpha(1f).scaleX(1f).scaleY(1f).setInterpolator(DecelerateInterpolator())
@@ -137,7 +141,11 @@ object DrawerTransition {
                 DrawerMotion.ZOOM -> animation.alpha(0f).scaleX(0.86f).scaleY(0.86f)
                 DrawerMotion.NONE -> Unit
             }
-            animation.setInterpolator(android.view.animation.AccelerateInterpolator()).withEndAction { frame.removeView(outgoing) }
+            animation.setInterpolator(android.view.animation.AccelerateInterpolator()).withEndAction {
+                frame.removeView(outgoing)
+                // Repaint the whole frame so nothing of the closed screen stays on it.
+                frame.invalidate()
+            }
         }
         animation.start()
     }

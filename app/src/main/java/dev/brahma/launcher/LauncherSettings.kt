@@ -32,14 +32,28 @@ data class LauncherSettings(
     val effects: Boolean = true,
     val lockScreen: Boolean = false,
     val swipeDistance: SwipeDistance = SwipeDistance.MEDIUM,
-    val drawerMotion: DrawerMotion = DrawerMotion.SLIDE
+    val drawerMotion: DrawerMotion = DrawerMotion.SLIDE,
+    /** Home takes the finish's colours; off keeps each layout's own. */
+    val finishColours: Boolean = true
 ) {
     companion object { const val MAX_SHORTCUTS = 3 }
 
     fun iconKit(colors: Palette) = IconKit(iconStyle, iconShape, iconPlate, iconPack, colors)
 
     /** Colours for settings and editors: the Luxe theme carries its gold everywhere, other layouts use the calm settings colours. */
-    fun uiPalette(dark: Boolean) = if (layout == HomeLayout.LUXE) layout.palette(dark) else settingsPalette(dark)
+    fun uiPalette(dark: Boolean) = if (layout == HomeLayout.LUXE) homePalette(dark) else settingsPalette(dark, uiStyle)
+
+    /**
+     * Home's colours in the chosen finish. With [finishColours], the page, cards, text and accent
+     * come from the finish's board, so home, all apps and settings read as one theme; each layout
+     * keeps its own [Palette.secondary] for its art. Luxe is a theme of its own and keeps its gold.
+     */
+    fun homePalette(dark: Boolean): Palette {
+        val own = layout.palette(dark).copy(finish = uiStyle)
+        if (!finishColours || uiStyle == UiStyle.FLAT || layout == HomeLayout.LUXE) return own
+        val board = settingsPalette(dark, uiStyle)
+        return own.copy(background = board.background, surface = board.surface, accent = board.accent, ink = board.ink, muted = board.muted)
+    }
 }
 
 // One owner for every persisted launcher value; keys predate this class and must not change.
@@ -66,7 +80,8 @@ class SettingsStore(private val preferences: SharedPreferences) {
         effects = preferences.getBoolean("effects", true),
         lockScreen = preferences.getBoolean("lock_screen", false),
         swipeDistance = SwipeDistance.entries.find { it.name == preferences.getString("swipe_distance", null) } ?: SwipeDistance.MEDIUM,
-        drawerMotion = DrawerMotion.entries.find { it.name == preferences.getString("drawer_motion", null) } ?: DrawerMotion.SLIDE
+        drawerMotion = DrawerMotion.entries.find { it.name == preferences.getString("drawer_motion", null) } ?: DrawerMotion.SLIDE,
+        finishColours = preferences.getBoolean("finish_colours", true)
     )
 
     fun save(settings: LauncherSettings) {
@@ -91,6 +106,7 @@ class SettingsStore(private val preferences: SharedPreferences) {
             .putBoolean("lock_screen", settings.lockScreen)
             .putString("swipe_distance", settings.swipeDistance.name)
             .putString("drawer_motion", settings.drawerMotion.name)
+            .putBoolean("finish_colours", settings.finishColours)
             .apply()
         if (!settings.lockScreen) saveLockKey(null)
         if (!settings.weather) clearWeather()

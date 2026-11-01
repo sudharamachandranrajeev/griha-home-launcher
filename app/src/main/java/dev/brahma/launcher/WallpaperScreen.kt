@@ -38,7 +38,7 @@ class WallpaperScreen(
 
     init {
         isFillViewport = true
-        setBackgroundColor(colors.background)
+        finishBackdrop(colors)
         body.setPadding(context.dp(24), context.dp(20), context.dp(24), context.dp(32))
         addView(body)
         body.addView(LinearLayout(context).apply {
@@ -89,9 +89,11 @@ class WallpaperScreen(
             setBackgroundColor(colors.surface)
         }
         addView(FrameLayout(context).apply {
-            addView(picture, FrameLayout.LayoutParams(-1, -1))
             soft(colors, context.dp(10).toFloat())
-            clipToOutline = true
+            addView(FrameLayout(context).apply {
+                addView(picture, FrameLayout.LayoutParams(-1, -1))
+                roundClip(context.dp(10).toFloat())
+            }, FrameLayout.LayoutParams(-1, -1))
         }, LinearLayout.LayoutParams(thumbWidth, thumbHeight))
         if (title.isNotEmpty()) addView(context.label(title, 12f, colors.muted).apply { gravity = Gravity.CENTER },
             LinearLayout.LayoutParams(thumbWidth, -2))

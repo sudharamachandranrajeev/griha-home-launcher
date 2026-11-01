@@ -49,7 +49,7 @@ class LockDesigner(
 
     init {
         isFillViewport = true
-        setBackgroundColor(colors.background)
+        finishBackdrop(colors)
         body.setPadding(dp(24), dp(20), dp(24), dp(32))
         addView(body)
         body.addView(LinearLayout(context).apply {
@@ -59,10 +59,13 @@ class LockDesigner(
         })
         val height = dp(420)
         body.addView(FrameLayout(context).apply {
-            addView(picture, FrameLayout.LayoutParams(-1, -1))
-            addView(ClockGuide(context, colors.accent), FrameLayout.LayoutParams(-1, -1))
+            // The surface stays outside the clip so its shadow can spill past the picture.
             soft(colors, dp(12).toFloat())
-            clipToOutline = true
+            addView(FrameLayout(context).apply {
+                addView(picture, FrameLayout.LayoutParams(-1, -1))
+                addView(ClockGuide(context, colors.accent), FrameLayout.LayoutParams(-1, -1))
+                roundClip(dp(12).toFloat())
+            }, FrameLayout.LayoutParams(-1, -1))
         }, LinearLayout.LayoutParams((height / screenAspect).toInt(), height).apply {
             gravity = Gravity.CENTER_HORIZONTAL
             setMargins(0, dp(12), 0, dp(12))
@@ -148,7 +151,7 @@ class LockDesigner(
             LockStyle.entries.forEach { style ->
                 val chosen = design.style == style
                 addView(context.action(style.title, if (chosen) colors.onAccent else colors.accent) { change(design.copy(style = style), rebuild = true) }.apply {
-                    if (chosen) background = rounded(colors.accent, dp(20).toFloat())
+                    if (chosen) depth(colors, dp(20).toFloat(), Role.PRIMARY)
                     contentDescription = if (chosen) "${style.title}, chosen" else style.title
                 })
             }
@@ -182,7 +185,7 @@ class LockDesigner(
             chips.addView(context.action(preset.title, if (chosen) colors.onAccent else colors.accent) {
                 change(design.copy(look = design.look.with(preset)), rebuild = true)
             }.apply {
-                if (chosen) background = rounded(colors.accent, dp(20).toFloat())
+                if (chosen) depth(colors, dp(20).toFloat(), Role.PRIMARY)
                 contentDescription = if (chosen) "${preset.title}, chosen" else preset.title
             })
         }

@@ -29,6 +29,7 @@ on one phone. One honest limit: it does not host Android widgets.
 ## ✨ What it does
 
 - 🏠 **Eight home looks** – Mono, Editorial, Soft cards, Arches, Night list, Dial clock, Soft glass and Dark luxury gold. Switch any time.
+- 🧊 **Six surface finishes** – Soft (raised and pressed, lit from the top left), Layered (stacked shadows and an accent glow), Tactile (thick keys with a warm glow), Glass (clear with coloured rims), Carved (dark bevels and an ember glow) and Flat. Cards, buttons, search fields, switches and sliders across home, all apps and settings take the finish you pick.
 - 👑 **Luxe home** – gold cards for your day: a schedule checklist, a daily ring, a forgiving streak, a focus mode that hides chosen apps, quotes and a roadmap.
 - 👆 **Swipe for all apps** – at the end of home, swipe up for every app; at the top of the list, swipe down to go home. You pick the swipe length and the animation.
 - 🎨 **Icon theming** – reshape icons (circle, squircle, teardrop), put them on a coloured plate, or use an icon pack made for Nova or ADW.
@@ -71,7 +72,7 @@ If no release is listed yet, build it yourself (see **For developers**).
 | --- | --- |
 | You and weather | Your name, place, footer line, weather |
 | Home screen | Layout, Luxe home, shortcuts, clock |
-| Look and theme | Light or dark, style, wallpapers |
+| Look and theme | Light or dark, surface finish, wallpapers |
 | Gestures and motion | Swipe length, all-apps animation, effects |
 | App icons | Icon style, shape, plate, icon packs |
 | Lock screen | Themed lock wallpaper and its design |

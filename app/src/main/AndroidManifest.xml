@@ -3,6 +3,8 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <!-- Used only when you set a wallpaper from Griha, or turn on the themed lock screen. -->
     <uses-permission android:name="android.permission.SET_WALLPAPER"/>
+    <!-- Used only when you install an update or another version from Settings, Updates. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
     <queries>
         <intent><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent>
         <!-- Icon packs announce themselves with these actions. -->
@@ -16,6 +18,8 @@
         </activity>
         <!-- Serves an exported sticker PNG only to the app chosen in the share sheet. -->
         <provider android:name=".StickerShareProvider" android:authorities="${applicationId}.stickers" android:exported="false" android:grantUriPermissions="true"/>
+        <!-- Hears how an update install went; only Android's package installer sends to it. -->
+        <receiver android:name=".InstallResultReceiver" android:exported="false"/>
         <!-- Asks Play services to fetch ML Kit's subject finder model ahead of first use. -->
         <meta-data android:name="com.google.mlkit.vision.DEPENDENCIES" android:value="subject_segment"/>
     </application>

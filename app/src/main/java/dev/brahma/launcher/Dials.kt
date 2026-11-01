@@ -211,29 +211,38 @@ class DialClockView(context: Context, private val ink: Int, private val muted: I
     }
 }
 
-// Battery as a slider from the soft UI kit: accent track up to the level, then a raised knob.
+// Battery as a slider from the soft UI kit: a pressed-in track, an accent fill that glows up to the
+// level, then a raised knob, all in the palette's finish.
 @SuppressLint("ViewConstructor")
-class LevelSlider(context: Context, private val track: Int, private val fill: Int, private val knob: Int) : View(context) {
+class LevelSlider(context: Context, private val colors: Palette) : View(context) {
     var percent: Int? = null
         set(value) { field = value; invalidate() }
-    private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val density = resources.displayMetrics.density
+    private val track = colors.depthDrawable(density, 100 * density, Role.FIELD, mix(colors.background, colors.muted, 0.12f))
+    private val fill = colors.depthDrawable(density, 100 * density, Role.PRIMARY, glow = true)
+    private val knob = colors.depthDrawable(density, 100 * density, Role.KEY,
+        if (colors.dark) mix(colors.surface, android.graphics.Color.WHITE, 0.55f) else android.graphics.Color.WHITE)
 
-    init { importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO }
+    init {
+        importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
+        listOf(track, fill, knob).forEach { it.callback = this }
+        unclipAncestors()
+    }
+
+    override fun verifyDrawable(who: android.graphics.drawable.Drawable) = who === track || who === fill || who === knob || super.verifyDrawable(who)
 
     override fun onDraw(canvas: Canvas) {
         val cy = height / 2f
-        val radius = height * 0.36f
-        val bar = height * 0.16f
+        val radius = height * 0.40f
+        val bar = height * 0.17f
         val x = radius + (width - radius * 2) * ((percent ?: 0).coerceIn(0, 100) / 100f)
-        paint.color = track
-        canvas.drawRoundRect(radius, cy - bar, width - radius, cy + bar, bar, bar, paint)
-        paint.color = fill
-        canvas.drawRoundRect(radius, cy - bar, x, cy + bar, bar, bar, paint)
-        paint.color = 0x33000000
-        canvas.drawCircle(x, cy + radius * 0.12f, radius, paint)
-        paint.color = knob
-        canvas.drawCircle(x, cy, radius * 0.94f, paint)
-        paint.color = fill
-        canvas.drawCircle(x, cy, radius * 0.34f, paint)
+        track.setBounds(radius.toInt(), (cy - bar).toInt(), (width - radius).toInt(), (cy + bar).toInt())
+        track.draw(canvas)
+        if (x - radius > bar) {
+            fill.setBounds(radius.toInt(), (cy - bar).toInt(), x.toInt(), (cy + bar).toInt())
+            fill.draw(canvas)
+        }
+        knob.setBounds((x - radius).toInt(), (cy - radius).toInt(), (x + radius).toInt(), (cy + radius).toInt())
+        knob.draw(canvas)
     }
 }

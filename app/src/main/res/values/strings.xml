@@ -20,5 +20,7 @@
         <item quantity="one">%d app</item>
         <item quantity="other">%d apps</item>
     </plurals>
+    <string name="checking_updates">Checking GitHub for Griha versions…</string>
+    <string name="no_releases">No versions are published yet.</string>
     <string name="at_time">At %1$s</string>
 </resources>

@@ -98,7 +98,7 @@ class HomeScreen(
     private val actions: HomeActions
 ) : ScrollView(context) {
     private val style = settings.layout
-    private val colors = style.palette(dark)
+    private val colors = settings.homePalette(dark)
     private val ink = colors.ink
     private val muted = colors.muted
     private val locale: Locale = resources.configuration.locales[0]
@@ -118,7 +118,7 @@ class HomeScreen(
 
     init {
         isFillViewport = true
-        setBackgroundColor(colors.backdrop(settings.wallpaper, 0xA0))
+        finishBackdrop(colors, if (settings.wallpaper) 0xA0 else null)
         body.setPadding(dp(24), dp(20), dp(24), dp(24))
         // A frame so layouts can draw art behind the content.
         val frame = FrameLayout(context)
@@ -155,8 +155,13 @@ class HomeScreen(
             space(12)
             body.addView(LinearLayout(context).apply {
                 gravity = Gravity.CENTER
-                addView(context.action("All apps", colors.accent, actions.onAllApps))
-                addView(context.action("Settings", colors.accent, actions.onSettings))
+                fun key(title: String, onTap: () -> Unit) = addView(context.action(title, colors.accent, onTap).apply {
+                    gravity = Gravity.CENTER
+                    setPadding(dp(20), 0, dp(20), 0)
+                    depth(colors, dp(24).toFloat(), Role.KEY, border = Color.TRANSPARENT)
+                }, LinearLayout.LayoutParams(-2, -2).apply { setMargins(dp(8), dp(4), dp(8), dp(4)) })
+                key("All apps", actions.onAllApps)
+                key("Settings", actions.onSettings)
             })
         }
     }
@@ -187,9 +192,9 @@ class HomeScreen(
                     addView(LinearLayout(context).apply {
                         orientation = LinearLayout.VERTICAL
                         gravity = Gravity.CENTER
-                        setPadding(dp(6), dp(6), dp(6), dp(6))
+                        setPadding(dp(6), dp(8), dp(6), dp(8))
                         addView(FrameLayout(context).apply {
-                            background = rounded(colors.surface, dp(18).toFloat(), (colors.accent and 0x00FFFFFF) or 0x66000000, dp(1))
+                            depth(colors, dp(18).toFloat(), Role.KEY, border = (colors.accent and 0x00FFFFFF) or 0x66000000)
                             addView(icon(app), FrameLayout.LayoutParams(dp(34), dp(34), Gravity.CENTER))
                         }, LinearLayout.LayoutParams(dp(56), dp(56)))
                         addView(context.label(app.label, 11f, muted).apply {
@@ -267,7 +272,7 @@ class HomeScreen(
         top.addView(intro, LinearLayout.LayoutParams(0, -2, 1f))
         val dayBlock = context.label("", 34f, colors.onInk, Typeface.BOLD).apply {
             gravity = Gravity.CENTER
-            setBackgroundColor(ink)
+            depth(colors, dp(4).toFloat(), Role.KEY, ink)
             setPadding(dp(12), dp(6), dp(12), dp(6))
             setOnClickListener { actions.onCalendar() }
         }
@@ -283,7 +288,7 @@ class HomeScreen(
         space(16)
         val row = LinearLayout(context).apply { gravity = Gravity.CENTER_VERTICAL }
         row.addView(clock(16f, colors.onInk).apply {
-            background = rounded(ink, dp(20).toFloat())
+            depth(colors, dp(20).toFloat(), Role.KEY, ink)
             setPadding(dp(18), dp(8), dp(18), dp(8))
         })
         row.addView(View(context), LinearLayout.LayoutParams(0, 1, 1f))
@@ -330,7 +335,7 @@ class HomeScreen(
         val banner = LinearLayout(context).apply { gravity = Gravity.CENTER_VERTICAL }
         val days = context.label("", 34f, ink, Typeface.BOLD).apply { setOnClickListener { actions.onCalendar() } }
         val number = context.label("", 30f, colors.onAccent, Typeface.BOLD).apply {
-            setBackgroundColor(colors.accent)
+            depth(colors, dp(6).toFloat(), Role.PRIMARY)
             setPadding(dp(10), 0, dp(10), 0)
         }
         tickers += {
@@ -382,7 +387,8 @@ class HomeScreen(
         space(12)
         val bottom = LinearLayout(context).apply { gravity = Gravity.CENTER_VERTICAL }
         val dial = AnalogClockView(context, colors.secondary, 0xFF4C8DFF.toInt()).apply {
-            elevation = dp(4).toFloat()
+            // The face is drawn with a corner of 0.38 of its radius; the surface matches it.
+            depth(colors, dp(28).toFloat(), Role.CARD, colors.secondary)
             setOnClickListener { actions.onClock() }
         }
         tickers += { dial.tick(HomeText.time(now(), use24Hour, locale)) }
@@ -422,7 +428,7 @@ class HomeScreen(
         body.addView(context.label(context.getString(R.string.search_home), 15f, colors.accent, Typeface.BOLD).apply {
             gravity = Gravity.CENTER_VERTICAL
             minHeight = dp(52)
-            background = rounded(colors.secondary, dp(26).toFloat())
+            depth(colors, dp(26).toFloat(), Role.KEY, colors.secondary)
             setPadding(dp(22), 0, dp(22), 0)
             contentDescription = context.getString(R.string.search_home)
             setOnClickListener { actions.onSearch() }
@@ -549,7 +555,7 @@ class HomeScreen(
 
         val time = softCard(column)
         time.addView(clock(46f, ink).apply { typeface = Typeface.create("sans-serif-light", Typeface.NORMAL) })
-        val slider = LevelSlider(context, mix(colors.background, colors.muted, 0.25f), colors.accent, colors.surface)
+        val slider = LevelSlider(context, colors)
         time.addView(slider, LinearLayout.LayoutParams(-1, dp(28)).apply { setMargins(0, dp(8), 0, 0) })
         val level = context.label("", 12f, muted)
         tickers += {
@@ -573,7 +579,7 @@ class HomeScreen(
             gravity = Gravity.CENTER_VERTICAL
             minimumHeight = dp(52)
             setPadding(dp(18), 0, dp(18), 0)
-            soft(colors, dp(26).toFloat(), glow = true)
+            depth(colors, dp(26).toFloat(), Role.FIELD, glow = true)
             addView(context.label(context.getString(R.string.search_home), 15f, muted), LinearLayout.LayoutParams(0, -2, 1f))
             addView(View(context).apply { background = rounded(colors.accent, dp(5).toFloat()) }, LinearLayout.LayoutParams(dp(10), dp(10)))
             contentDescription = context.getString(R.string.search_home)
@@ -622,7 +628,7 @@ class HomeScreen(
         setPadding(dp(8), dp(10), dp(8), dp(10))
         fun key(view: View, size: Int, description: String, glow: Boolean = false, onTap: (View) -> Unit) {
             addView(FrameLayout(context).apply {
-                soft(colors, dp(14).toFloat(), if (glow) colors.accent else colors.surface, glow)
+                depth(colors, dp(14).toFloat(), if (glow) Role.PRIMARY else Role.KEY)
                 addView(view, FrameLayout.LayoutParams(size, size, Gravity.CENTER))
                 contentDescription = description
                 setOnClickListener(onTap)
@@ -641,8 +647,7 @@ class HomeScreen(
     private fun darkCard() = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
         gravity = Gravity.CENTER
-        background = rounded(colors.secondary, dp(56).toFloat())
-        elevation = dp(4).toFloat()
+        depth(colors, dp(56).toFloat(), Role.CARD, colors.secondary, glow = true)
         setPadding(dp(10), dp(12), dp(10), dp(12))
         val big = context.label("", 30f, Color.WHITE, Typeface.BOLD).apply { gravity = Gravity.CENTER }
         val small = context.label("", 11f, 0xFFB8C7E6.toInt()).apply { gravity = Gravity.CENTER }
@@ -665,8 +670,7 @@ class HomeScreen(
     private fun weekCard() {
         val card = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            background = rounded(colors.surface, dp(28).toFloat())
-            elevation = dp(3).toFloat()
+            depth(colors, dp(28).toFloat())
             setPadding(dp(12), dp(14), dp(12), dp(14))
             setOnClickListener { actions.onCalendar() }
         }
@@ -711,7 +715,8 @@ class HomeScreen(
         addView(context.label(day.format(DateTimeFormatter.ofPattern("EEE", locale)).uppercase(locale), 9f, muted))
         addView(context.label(day.dayOfMonth.toString(), 13f, if (today) Color.WHITE else ink, Typeface.BOLD).apply {
             gravity = Gravity.CENTER
-            background = rounded(if (today) colors.secondary else colors.background, dp(16).toFloat())
+            if (today) depth(colors, dp(16).toFloat(), Role.KEY, colors.secondary, glow = true)
+            else depth(colors, dp(16).toFloat(), Role.FIELD, colors.background, border = Color.TRANSPARENT)
         }, LinearLayout.LayoutParams(dp(32), dp(32)).apply { setMargins(0, dp(4), 0, 0) })
     }
 
@@ -751,12 +756,14 @@ class HomeScreen(
     private fun searchBar() {
         val bar = LinearLayout(context).apply {
             gravity = Gravity.CENTER_VERTICAL
-            background = rounded(colors.surface, dp(26).toFloat(), colors.secondary, dp(1))
+            depth(colors, dp(26).toFloat(), Role.FIELD, border = colors.secondary)
             setPadding(dp(16), 0, dp(4), 0)
         }
         val results = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
         val field = EditText(context).apply {
             hint = context.getString(R.string.search_home)
+            setTextColor(ink)
+            setHintTextColor(muted)
             setSingleLine(true)
             background = null
             imeOptions = EditorInfo.IME_ACTION_SEARCH
@@ -811,14 +818,13 @@ class HomeScreen(
 
     private fun appTiles() {
         if (favorites.isEmpty()) return emptyFavorites()
-        favorites.chunked(3).forEach { group ->
+        favorites.chunked(3).forEachIndexed { line, group ->
             val row = LinearLayout(context)
-            group.forEach { app ->
+            group.forEachIndexed { place, app ->
                 val tile = LinearLayout(context).apply {
                     orientation = LinearLayout.VERTICAL
                     gravity = Gravity.CENTER
-                    background = rounded(colors.surface, dp(24).toFloat())
-                    elevation = dp(3).toFloat()
+                    depth(colors, dp(24).toFloat(), tint = glassTint(line * 3 + place))
                     setPadding(dp(8), dp(16), dp(8), dp(12))
                     addView(icon(app), LinearLayout.LayoutParams(dp(40), dp(40)))
                     addView(context.label(app.label, 12f, ink).apply {
@@ -830,7 +836,7 @@ class HomeScreen(
                     setOnClickListener { actions.onApp(app, this) }
                     setOnLongClickListener { actions.onAppOptions(app); true }
                 }
-                row.addView(tile, LinearLayout.LayoutParams(0, -2, 1f).apply { setMargins(dp(5), dp(5), dp(5), dp(5)) })
+                row.addView(tile, LinearLayout.LayoutParams(0, -2, 1f).apply { setMargins(dp(6), dp(7), dp(6), dp(7)) })
             }
             repeat(3 - group.size) { row.addView(View(context), LinearLayout.LayoutParams(0, 1, 1f)) }
             body.addView(row)
@@ -838,7 +844,7 @@ class HomeScreen(
     }
 
     private fun shortcutCircle(app: AppEntry) = FrameLayout(context).apply {
-        background = rounded(Color.TRANSPARENT, dp(22).toFloat(), ink, dp(1))
+        depth(colors, dp(26).toFloat(), Role.KEY, border = ink)
         addView(icon(app), FrameLayout.LayoutParams(dp(22), dp(22), Gravity.CENTER))
         contentDescription = app.label
         setOnClickListener { actions.onApp(app, this) }
@@ -847,7 +853,7 @@ class HomeScreen(
 
     private fun shortcutPill(app: AppEntry, color: Int) = LinearLayout(context).apply {
         gravity = Gravity.CENTER
-        background = rounded(color, dp(24).toFloat())
+        depth(colors, dp(24).toFloat(), Role.KEY, color)
         setPadding(dp(8), 0, dp(8), 0)
         addView(icon(app), LinearLayout.LayoutParams(dp(20), dp(20)))
         addView(context.label(app.label, 12f, Color.WHITE, Typeface.BOLD).apply {
@@ -861,8 +867,7 @@ class HomeScreen(
 
     private fun widePill(app: AppEntry) = LinearLayout(context).apply {
         gravity = Gravity.CENTER_VERTICAL
-        background = rounded(colors.surface, dp(30).toFloat())
-        elevation = dp(3).toFloat()
+        depth(colors, dp(30).toFloat())
         minimumHeight = dp(60)
         setPadding(dp(24), dp(8), dp(16), dp(8))
         addView(context.label(app.label, 15f, ink), LinearLayout.LayoutParams(0, -2, 1f))
@@ -875,7 +880,7 @@ class HomeScreen(
     private fun emptyFavorites() {
         body.addView(LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            background = rounded(colors.surface, dp(if (style == HomeLayout.CARDS || style == HomeLayout.SOFT) 24 else 4).toFloat())
+            depth(colors, dp(if (style == HomeLayout.CARDS || style == HomeLayout.SOFT) 24 else 8).toFloat())
             setPadding(dp(20), dp(20), dp(20), dp(20))
             addView(context.label("Make yourself at home", 22f, ink, Typeface.BOLD))
             addView(context.label("Pick the apps you use most. You can change them any time by touching and holding an app.", 16f, muted).apply {
@@ -891,6 +896,9 @@ class HomeScreen(
     }
 
     private fun dp(value: Int) = context.dp(value)
+
+    /** The glass finish lights its panes mint, lavender and peach in turn, as on its board. */
+    private fun glassTint(index: Int) = if (colors.finish == UiStyle.GLASS) Depth.glassTints[index % Depth.glassTints.size] else null
 
     private fun space(height: Int) = body.addView(View(context), LinearLayout.LayoutParams(1, dp(height)))
 }

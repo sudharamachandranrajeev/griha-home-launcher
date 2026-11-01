@@ -1,7 +1,5 @@
 package dev.brahma.launcher
 
-import android.animation.ObjectAnimator
-import android.animation.StateListAnimator
 import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.Color
@@ -13,7 +11,6 @@ import android.graphics.Typeface
 import android.graphics.drawable.AdaptiveIconDrawable
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.StateListDrawable
-import android.os.Build
 import android.view.Gravity
 import android.view.View
 import android.widget.CompoundButton
@@ -54,7 +51,25 @@ fun rounded(color: Int, radius: Float, stroke: Int? = null, strokeWidth: Int = 0
 
 enum class IconStyle(val title: String) { ORIGINAL("Original colours"), GREY("Grey"), MONO("Monochrome") }
 
-enum class UiStyle(val title: String) { SOFT("Soft · raised cards and glow"), FLAT("Flat") }
+/**
+ * How surfaces are drawn across the launcher. Names are saved in settings, so they must not change;
+ * each finish follows one of the reference boards.
+ */
+enum class UiStyle(
+    val title: String,
+    /** Corner size against the layout's own: the styleguide is crisp, the soft boards are pills. */
+    val corners: Float,
+    /** Letter spacing of section headings: the soft and carved boards use spaced capitals. */
+    val headingSpacing: Float,
+    val headingCaps: Boolean
+) {
+    SOFT("Soft · ivory and cobalt, raised and pressed", 1.1f, 0.18f, true),
+    LAYERED("Layered · product styleguide, stacked shadows", 0.5f, 0f, false),
+    TACTILE("Tactile · white keys with a warm amber light", 1.25f, 0.04f, false),
+    GLASS("Glass · frosted panes with coloured rims", 1.2f, 0.02f, false),
+    CARVED("Carved · charcoal and copper, ember glow", 0.65f, 0.12f, true),
+    FLAT("Flat · the layout's classic look", 1f, 0.08f, true)
+}
 
 /** Mixes [amount] of [other] into [color]; alpha comes from [color]. */
 fun mix(color: Int, other: Int, amount: Float): Int {
@@ -62,44 +77,46 @@ fun mix(color: Int, other: Int, amount: Float): Int {
     return (color and 0xFF000000.toInt()) or channel(16) or channel(8) or channel(0)
 }
 
-/**
- * Raised surface from the soft UI kit: lit top edge, soft shadow below, a deeper shadow while
- * pressed and an accent ring while focused. [glow] tints the shadow with the accent.
- */
-fun View.soft(colors: Palette, radius: Float, fill: Int = colors.surface, glow: Boolean = false) {
-    val dp = context.resources.displayMetrics.density
-    val top = mix(fill, Color.WHITE, if (colors.dark) 0.07f else 0.55f)
-    background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(top, fill)).apply {
-        cornerRadius = radius
-        setStroke(dp.toInt().coerceAtLeast(1), if (colors.dark) 0x22FFFFFF else 0xB3FFFFFF.toInt())
-    }
-    elevation = (if (glow) 10 else 5) * dp
-    if (Build.VERSION.SDK_INT >= 28) {
-        val shade = when {
-            glow -> colors.accent
-            colors.dark -> Color.BLACK
-            else -> 0xFF7D8AA3.toInt()
-        }
-        outlineSpotShadowColor = shade
-        outlineAmbientShadowColor = shade
-    }
-    stateListAnimator = StateListAnimator().apply {
-        addState(intArrayOf(android.R.attr.state_pressed), ObjectAnimator.ofFloat(this@soft, "translationZ", 6 * dp).setDuration(120))
-        addState(intArrayOf(), ObjectAnimator.ofFloat(this@soft, "translationZ", 0f).setDuration(160))
-    }
-    foreground = StateListDrawable().apply {
-        addState(intArrayOf(android.R.attr.state_focused), rounded(Color.TRANSPARENT, radius, colors.accent, (2 * dp).toInt()))
-    }
-}
+/** A raised surface in the palette's finish; the accent colour as [fill] makes it the primary action. */
+fun View.soft(colors: Palette, radius: Float, fill: Int = colors.surface, glow: Boolean = false) =
+    depth(colors, radius, if (fill == colors.accent) Role.PRIMARY else Role.CARD, fill, glow)
 
-/** Accent-tinted switch or radio button, as in the soft UI kit's toggles. */
+/**
+ * Accent switches and radio buttons. Outside the flat finish they get drawn parts: a knob that
+ * stands up from a pressed-in track, which fills and glows with the accent when on.
+ */
 fun CompoundButton.accent(colors: Palette) {
     val states = arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf())
-    buttonTintList = ColorStateList(states, intArrayOf(colors.accent, colors.muted))
-    if (this is android.widget.Switch) {
-        thumbTintList = ColorStateList(states, intArrayOf(Color.WHITE, mix(colors.surface, Color.WHITE, 0.5f)))
-        trackTintList = ColorStateList(states, intArrayOf(colors.accent, colors.muted))
+    if (colors.finish == UiStyle.FLAT) {
+        buttonTintList = ColorStateList(states, intArrayOf(colors.accent, colors.muted))
+        if (this is android.widget.Switch) {
+            thumbTintList = ColorStateList(states, intArrayOf(Color.WHITE, mix(colors.surface, Color.WHITE, 0.5f)))
+            trackTintList = ColorStateList(states, intArrayOf(colors.accent, colors.muted))
+        }
+        return
     }
+    val density = resources.displayMetrics.density
+    val size = (28 * density).toInt()
+    val knob = if (colors.dark) mix(colors.surface, Color.WHITE, 0.55f) else Color.WHITE
+    fun choice(on: android.graphics.drawable.Drawable, off: android.graphics.drawable.Drawable) = StateListDrawable().apply {
+        addState(intArrayOf(android.R.attr.state_checked), on)
+        addState(intArrayOf(), off)
+    }
+    if (this is android.widget.Switch) {
+        thumbDrawable = colors.depthDrawable(density, size / 2f, Role.KEY, knob, width = size, height = size, inset = 3 * density)
+        trackDrawable = choice(colors.depthDrawable(density, size / 2f, Role.PRIMARY, width = size * 2, height = size),
+            colors.depthDrawable(density, size / 2f, Role.FIELD, colors.surface, width = size * 2, height = size))
+        thumbTintList = null
+        trackTintList = null
+        switchMinWidth = size * 2
+    } else {
+        val box = (24 * density).toInt()
+        buttonDrawable = choice(colors.depthDrawable(density, box / 2f, Role.FIELD, colors.surface, width = box, height = box, dot = colors.accent),
+            colors.depthDrawable(density, box / 2f, Role.FIELD, colors.surface, width = box, height = box))
+        buttonTintList = null
+        compoundDrawablePadding = (8 * density).toInt()
+    }
+    unclipAncestors()
 }
 
 /** Colours offered for effects and lock text, with names for screen readers. */
@@ -138,8 +155,31 @@ fun Context.slider(title: String, value: Float, colors: Palette, onChange: (Floa
         progress = (value * 100).toInt()
         contentDescription = title
         minimumHeight = dp(48)
-        progressTintList = ColorStateList.valueOf(colors.accent)
-        thumbTintList = ColorStateList.valueOf(colors.accent)
+        if (colors.finish == UiStyle.FLAT) {
+            progressTintList = ColorStateList.valueOf(colors.accent)
+            thumbTintList = ColorStateList.valueOf(colors.accent)
+        } else {
+            // A pressed-in track, an accent fill and a raised knob, as in the kits' sliders.
+            val density = resources.displayMetrics.density
+            val bar = (8 * density).toInt()
+            val knob = (26 * density).toInt()
+            progressDrawable = android.graphics.drawable.LayerDrawable(arrayOf(
+                colors.depthDrawable(density, bar / 2f, Role.FIELD, colors.surface, height = bar),
+                android.graphics.drawable.ClipDrawable(android.graphics.drawable.GradientDrawable(
+                    android.graphics.drawable.GradientDrawable.Orientation.LEFT_RIGHT,
+                    intArrayOf(mix(colors.accent, Color.WHITE, 0.25f), colors.accent)).apply { cornerRadius = bar / 2f },
+                    Gravity.START, android.graphics.drawable.ClipDrawable.HORIZONTAL)
+            )).apply {
+                setId(0, android.R.id.background)
+                setId(1, android.R.id.progress)
+            }
+            minimumHeight = (48 * density).toInt()
+            if (android.os.Build.VERSION.SDK_INT >= 29) { minHeight = bar; maxHeight = bar }
+            thumb = colors.depthDrawable(density, knob / 2f, Role.KEY, if (colors.dark) mix(colors.surface, Color.WHITE, 0.55f) else Color.WHITE,
+                width = knob, height = knob)
+            splitTrack = false
+            unclipAncestors()
+        }
         setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             private var dragging = false
             // Keys and screen readers change the value without a drag; report those at once.

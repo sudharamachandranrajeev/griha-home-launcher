@@ -31,7 +31,6 @@ class DrawerScreen(
     private val icons: IconKit,
     wallpaper: Boolean,
     private val effects: Boolean,
-    soft: Boolean,
     private var apps: List<AppEntry>,
     private var favoriteIds: Set<String>,
     query: String,
@@ -58,7 +57,9 @@ class DrawerScreen(
         setText(query)
         setSingleLine(true)
         inputType = InputType.TYPE_CLASS_TEXT
-        background = rounded(colors.surface, context.dp(24).toFloat(), colors.secondary, context.dp(1))
+        setTextColor(ink)
+        setHintTextColor(muted)
+        depth(colors, context.dp(26).toFloat(), Role.FIELD, border = colors.secondary)
         setPadding(context.dp(18), 0, context.dp(18), 0)
     }
     private val adapter = object : BaseAdapter() {
@@ -100,7 +101,7 @@ class DrawerScreen(
 
     init {
         orientation = VERTICAL
-        setBackgroundColor(colors.backdrop(wallpaper, 0xE6))
+        finishBackdrop(colors, if (wallpaper) 0xE6 else null)
         setPadding(context.dp(16), context.dp(12), context.dp(4), 0)
         addView(LinearLayout(context).apply {
             gravity = Gravity.CENTER_VERTICAL
@@ -111,8 +112,6 @@ class DrawerScreen(
             }, LayoutParams(0, -2, 1f))
             addView(context.action(context.getString(R.string.home), colors.accent, actions.onHome))
         })
-        if (soft) search.soft(colors, context.dp(26).toFloat(), glow = search.hasFocus())
-        if (soft) search.setOnFocusChangeListener { _, focused -> search.soft(colors, context.dp(26).toFloat(), glow = focused) }
         addView(search, LayoutParams(-1, context.dp(52)).apply { setMargins(0, context.dp(8), context.dp(12), context.dp(4)) })
         addView(context.label(context.getString(R.string.favorite_hint), 13f, muted).apply { setPadding(context.dp(4), 0, 0, 0) })
         val listArea = LinearLayout(context)
