@@ -14,7 +14,6 @@ import android.graphics.PixelFormat
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
 import android.graphics.RadialGradient
-import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Shader
 import android.graphics.drawable.Drawable
@@ -94,7 +93,8 @@ class DepthDrawable(private val spec: DepthSpec) : Drawable() {
     private val bitmapPaint = Paint(Paint.FILTER_BITMAP_FLAG)
     private val face = RectF()
     private val shape = RectF()
-    private var builtFor = Rect()
+    private var builtWidth = -1
+    private var builtHeight = -1
     private var outerBitmap: Bitmap? = null
     private var glowBitmap: Bitmap? = null
     private var innerBitmap: Bitmap? = null
@@ -186,10 +186,12 @@ class DepthDrawable(private val spec: DepthSpec) : Drawable() {
     // ---- Cached light ----
 
     private fun build() {
-        if (builtFor == bounds) return
-        builtFor = Rect(bounds)
+        // Light depends only on the size, so a moving knob or bubble reuses it.
         shape.set(bounds)
         shape.inset(spec.inset, spec.inset)
+        if (builtWidth == bounds.width() && builtHeight == bounds.height()) return
+        builtWidth = bounds.width()
+        builtHeight = bounds.height()
         reach = ceil(spec.reach())
         outerBitmap = light(spec.outer)
         glowBitmap = light(spec.glow)
@@ -474,8 +476,13 @@ object Depth {
  * accent colour as fill makes it the primary action. [border] is the edge in the flat finish.
  */
 fun View.depth(colors: Palette, radius: Float, role: Role = Role.CARD, fill: Int = if (role == Role.PRIMARY) colors.accent else colors.surface,
-               glow: Boolean = false, border: Int? = null, tint: Int? = null) {
+               glow: Boolean = false, border: Int? = null, tint: Int? = null, extrude: Float = 0f) {
     val spec = Depth.spec(colors, radius, role, fill, glow, resources.displayMetrics.density, border, tint)
+    // Extruded: a solid side under the face in any finish, like a key standing up from the page.
+    if (extrude > spec.lip) {
+        spec.lip = extrude
+        spec.lipColor = mix(fill, Color.BLACK, if (colors.dark) 0.55f else 0.22f)
+    }
     background = DepthDrawable(spec)
     elevation = 0f
     stateListAnimator = null

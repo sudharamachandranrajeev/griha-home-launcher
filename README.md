@@ -33,6 +33,8 @@ Status: **beta (0.5)**, used daily on one phone. One honest limit: it does not h
 - 🧊 **Six surface finishes** – Soft (raised and pressed, lit from the top left), Layered (stacked shadows and an accent glow), Tactile (thick keys with a warm glow), Glass (clear with coloured rims), Carved (dark bevels and an ember glow) and Flat. Cards, buttons, search fields, switches and sliders across home, all apps and settings take the finish you pick.
 - 👑 **Luxe home** – gold cards for your day: a schedule checklist, a daily ring, a forgiving streak, a focus mode that hides chosen apps, quotes and a roadmap.
 - 👆 **Swipe for all apps** – at the end of home, swipe up for every app; at the top of the list, swipe down to go home. You pick the swipe length and the animation.
+- 🔤 **Side alphabet** – in all apps, touch and hold the letters on the right and slide: they swell out around your finger, a bubble shows the letter, and the list jumps to it.
+- 🧱 **All apps in 3D** – extruded tiles that stand up on a solid side and sink when pressed, or a 3D wheel where rows turn away toward the edges. Or a flat list.
 - 🎨 **Icon theming** – reshape icons (circle, squircle, teardrop), put them on a coloured plate, or use an icon pack made for Nova or ADW.
 - 🔒 **Themed lock screen** – Griha draws your lock wallpaper with the date and a greeting, with text effects such as 3D extrusion, glossy glass, gold foil and Witcher steel.
 - 🖼️ **Wallpaper sets** – four wallpapers drawn for each look, plus your own pictures or a ZIP wallpaper pack.
@@ -75,7 +77,7 @@ If no release is listed yet, build it yourself (see **For developers**).
 | You and weather | Your name, place, footer line, weather |
 | Home screen | Layout, Luxe home, shortcuts, clock |
 | Look and theme | Light or dark, surface finish, wallpapers |
-| Gestures and motion | Swipe length, all-apps animation, effects |
+| Gestures and motion | Swipe length, all-apps 3D and animation, effects |
 | App icons | Icon style, shape, plate, icon packs |
 | Lock screen | Themed lock wallpaper and its design |
 | Stickers | Cut-out photos on home |

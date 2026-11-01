@@ -463,7 +463,7 @@ class MainActivity : Activity() {
         home = null
         val view = DrawerScreen(this, settings.homePalette(appliedDark), settings.iconKit(settings.homePalette(appliedDark)), settings.wallpaper,
             Effects.enabled(settings), shownApps(),
-            store.favorites(), "", settings.swipeDistance, DrawerActions(
+            store.favorites(), "", settings.swipeDistance, settings.drawerDepth, DrawerActions(
                 onApp = ::launch,
                 onAppOptions = ::appOptions,
                 onHome = ::renderHome))

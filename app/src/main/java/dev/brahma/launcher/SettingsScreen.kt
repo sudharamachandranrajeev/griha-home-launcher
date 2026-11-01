@@ -50,7 +50,7 @@ enum class SettingsCategory(val title: String, val summary: String) {
     PROFILE("You and weather", "Name, place, footer line, weather"),
     HOME("Home screen", "Layout, Luxe home, shortcuts, clock"),
     LOOK("Look and theme", "Light or dark, surface finish, wallpapers"),
-    GESTURES("Gestures and motion", "Swipe distance, all-apps animation, effects"),
+    GESTURES("Gestures and motion", "Swipe distance, all-apps 3D and animation, effects"),
     ICONS("App icons", "Icon style, shape, plate, icon packs"),
     LOCK("Lock screen", "Themed lock wallpaper and its design"),
     STICKERS("Stickers", "Cut-out photos on home"),
@@ -193,6 +193,12 @@ class SettingsScreen(
         choices(SwipeDistance.entries.map { it.title }, current.swipeDistance.ordinal) {
             update(current.copy(swipeDistance = SwipeDistance.entries[it]))
         }
+
+        section("All apps 3D")
+        choices(DrawerDepth.entries.map { it.title }, current.drawerDepth.ordinal) {
+            update(current.copy(drawerDepth = DrawerDepth.entries[it]))
+        }
+        group.addView(context.label("Touch and hold the letters at the right of all apps and slide to jump between sections.", 14f, muted))
 
         section("All apps animation")
         choices(DrawerMotion.entries.map { it.title }, current.drawerMotion.ordinal) {

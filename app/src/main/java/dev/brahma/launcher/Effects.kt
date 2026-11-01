@@ -10,11 +10,13 @@ import android.os.Bundle
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.view.animation.DecelerateInterpolator
 import android.view.animation.OvershootInterpolator
 import android.widget.AbsListView
 import android.widget.EditText
+import kotlin.math.abs
 
 /**
  * Launcher-wide motion. Android does not let a launcher animate other apps, so effects cover
@@ -31,14 +33,41 @@ object Effects {
         if (root is ViewGroup) for (index in 0 until root.childCount) addPops(root.getChildAt(index))
     }
 
-    // The listener only animates and returns false, so the view's own click handling still runs.
+    /**
+     * The listener only animates and returns false, so the view's own click handling still runs.
+     * The press waits for Android's tap timeout and is dropped once the finger travels, so
+     * scrolling a list past a row never squeezes or moves it; only a real tap beats.
+     */
     @SuppressLint("ClickableViewAccessibility")
     fun pop(view: View) {
+        val slop = ViewConfiguration.get(view.context).scaledTouchSlop
+        var downX = 0f
+        var downY = 0f
+        var moved = false
+        var pressed = false
+        val pressLater = Runnable { pressed = true; press(view) }
         view.setOnTouchListener { touched, event ->
             when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> press(touched, event)
-                MotionEvent.ACTION_UP -> beat(touched)
-                MotionEvent.ACTION_CANCEL -> settle(touched)
+                MotionEvent.ACTION_DOWN -> {
+                    downX = event.x
+                    downY = event.y
+                    moved = false
+                    pressed = false
+                    touched.postDelayed(pressLater, ViewConfiguration.getTapTimeout().toLong())
+                }
+                MotionEvent.ACTION_MOVE -> if (!moved && (abs(event.x - downX) > slop || abs(event.y - downY) > slop)) {
+                    moved = true
+                    touched.removeCallbacks(pressLater)
+                    if (pressed) settle(touched)
+                }
+                MotionEvent.ACTION_UP -> {
+                    touched.removeCallbacks(pressLater)
+                    if (moved) settle(touched) else beat(touched)
+                }
+                MotionEvent.ACTION_CANCEL -> {
+                    touched.removeCallbacks(pressLater)
+                    settle(touched)
+                }
             }
             false
         }
@@ -78,12 +107,9 @@ object Effects {
     fun openFrom(view: View?): Bundle? =
         view?.takeIf { it.isAttachedToWindow }?.let { ActivityOptions.makeScaleUpAnimation(it, 0, 0, it.width, it.height).toBundle() }
 
-    private fun press(view: View, event: MotionEvent) {
-        // Tilt toward the finger: up to 8 degrees on each axis.
-        val x = (event.x / view.width.coerceAtLeast(1) - 0.5f) * 2
-        val y = (event.y / view.height.coerceAtLeast(1) - 0.5f) * 2
-        view.cameraDistance = 12000 * view.resources.displayMetrics.density
-        view.animate().scaleX(0.92f).scaleY(0.92f).rotationY(x * 8).rotationX(-y * 8).setStartDelay(0)
+    // An even squeeze in place; nothing tilts or shifts toward the finger.
+    private fun press(view: View) {
+        view.animate().scaleX(0.95f).scaleY(0.95f).rotationX(0f).rotationY(0f).setStartDelay(0)
             .setDuration(110).setInterpolator(DecelerateInterpolator()).start()
     }
 
@@ -101,7 +127,7 @@ object Effects {
     }
 
     private fun settle(view: View) {
-        view.animate().scaleX(1f).scaleY(1f).rotationX(0f).rotationY(0f).setDuration(150).start()
+        view.animate().scaleX(1f).scaleY(1f).rotationX(0f).rotationY(0f).setStartDelay(0).setDuration(150).start()
     }
 }
 

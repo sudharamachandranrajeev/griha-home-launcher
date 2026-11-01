@@ -34,7 +34,9 @@ data class LauncherSettings(
     val swipeDistance: SwipeDistance = SwipeDistance.MEDIUM,
     val drawerMotion: DrawerMotion = DrawerMotion.SLIDE,
     /** Home takes the finish's colours; off keeps each layout's own. */
-    val finishColours: Boolean = true
+    val finishColours: Boolean = true,
+    /** How rows in all apps stand off the page. */
+    val drawerDepth: DrawerDepth = DrawerDepth.EXTRUDED
 ) {
     companion object { const val MAX_SHORTCUTS = 3 }
 
@@ -81,7 +83,8 @@ class SettingsStore(private val preferences: SharedPreferences) {
         lockScreen = preferences.getBoolean("lock_screen", false),
         swipeDistance = SwipeDistance.entries.find { it.name == preferences.getString("swipe_distance", null) } ?: SwipeDistance.MEDIUM,
         drawerMotion = DrawerMotion.entries.find { it.name == preferences.getString("drawer_motion", null) } ?: DrawerMotion.SLIDE,
-        finishColours = preferences.getBoolean("finish_colours", true)
+        finishColours = preferences.getBoolean("finish_colours", true),
+        drawerDepth = DrawerDepth.entries.find { it.name == preferences.getString("drawer_depth", null) } ?: DrawerDepth.EXTRUDED
     )
 
     fun save(settings: LauncherSettings) {
@@ -107,6 +110,7 @@ class SettingsStore(private val preferences: SharedPreferences) {
             .putString("swipe_distance", settings.swipeDistance.name)
             .putString("drawer_motion", settings.drawerMotion.name)
             .putBoolean("finish_colours", settings.finishColours)
+            .putString("drawer_depth", settings.drawerDepth.name)
             .apply()
         if (!settings.lockScreen) saveLockKey(null)
         if (!settings.weather) clearWeather()
