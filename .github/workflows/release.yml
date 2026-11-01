@@ -1,0 +1,101 @@
+# Builds, signs and publishes Griha when a version tag such as v0.5.0 is pushed.
+# The release key comes from repository secrets and is never committed:
+#   GRIHA_KEYSTORE_BASE64   the .jks keystore, base64-encoded (base64 -w0 release.jks)
+#   GRIHA_KEYSTORE_PASSWORD the keystore password
+#   GRIHA_KEY_ALIAS         the key alias
+#   GRIHA_KEY_PASSWORD      the key password
+# Use the same key as the Griha already on your phone: Android only updates an app
+# with an installer signed by the same key, and Griha's in-app updater checks it too.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release, for example v0.5.0 (it must already exist)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install SDK 36
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Check the tag matches the app version
+        run: |
+          VERSION="${TAG#v}"
+          NAME=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
+          if [ "$VERSION" != "$NAME" ]; then
+            echo "::error::Tag $TAG does not match versionName $NAME in app/build.gradle.kts"; exit 1
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Set up the signing key
+        env:
+          KEYSTORE: ${{ secrets.GRIHA_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.GRIHA_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.GRIHA_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.GRIHA_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE" ] || [ -z "$STORE_PASSWORD" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASSWORD" ]; then
+            echo "::error::Add the GRIHA_KEYSTORE_BASE64, GRIHA_KEYSTORE_PASSWORD, GRIHA_KEY_ALIAS and GRIHA_KEY_PASSWORD repository secrets (Settings, Secrets and variables, Actions), then re-run this workflow."
+            exit 1
+          fi
+          mkdir -p .signing
+          echo "$KEYSTORE" | base64 -d > .signing/release.jks
+          {
+            echo "storeFile=.signing/release.jks"
+            echo "storePassword=$STORE_PASSWORD"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "keyPassword=$KEY_PASSWORD"
+          } > .signing/release.properties
+
+      - name: Test, lint and build
+        run: ./gradlew --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleRelease
+
+      - name: Verify the signature and name the installer
+        run: |
+          APK=app/build/outputs/apk/release/app-release.apk
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs "$APK"
+          cp "$APK" "griha-launcher-$VERSION.apk"
+          sha256sum "griha-launcher-$VERSION.apk" | tee checksum.txt
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo "Griha $VERSION for Android 8.0 and later."
+            echo
+            git tag -l --format='%(contents)' "$TAG"
+            echo
+            echo "SHA-256:"
+            echo
+            echo '```'
+            cat checksum.txt
+            echo '```'
+          } > notes.md
+          gh release create "$TAG" "griha-launcher-$VERSION.apk" --title "Griha $VERSION" --notes-file notes.md --verify-tag
+
+      - name: Remove the key
+        if: always()
+        run: rm -rf .signing

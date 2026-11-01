@@ -37,6 +37,7 @@ on one phone. One honest limit: it does not host Android widgets.
 - 🖼️ **Wallpaper sets** – four wallpapers drawn for each look, plus your own pictures or a ZIP wallpaper pack.
 - ✂️ **Photo stickers** – pick a photo; Griha cuts out the person or pet on the phone and lets you place it on home.
 - 🌦️ **Optional weather** – off until you turn it on, and then it sends only the place you typed.
+- ⬆️ **In-app updates** – check for new versions, install them, or roll back to an older one, from Settings. Back up and restore your settings too.
 
 ## 🚀 Get started
 
@@ -77,6 +78,7 @@ If no release is listed yet, build it yourself (see **For developers**).
 | App icons | Icon style, shape, plate, icon packs |
 | Lock screen | Themed lock wallpaper and its design |
 | Stickers | Cut-out photos on home |
+| Updates and versions | Update, roll back, back up and restore settings |
 | Android | Default home app |
 
 ## 🧭 How it works
@@ -98,6 +100,7 @@ flowchart LR
 
 - **Stays on the phone:** your name, place, favourites, stickers, imported wallpapers, Luxe schedule and focus history.
 - **Leaves the phone only when weather is on:** the place you typed and its coordinates go to [Open-Meteo](https://open-meteo.com) about every 30 minutes while home is open. No location permission or device ID is used.
+- **Updates:** only when you tap **Check for updates**, Griha asks GitHub for this project's release list; an installer is downloaded only when you pick one, and it must match its published SHA-256 checksum and Griha's signing key.
 - **Sticker cut-outs:** found on the phone by Google ML Kit through Play services. The photo is not uploaded; Play services may send Google anonymous usage statistics.
 - **Delete everything:** uninstall Griha, or clear its storage in **Settings → Apps → Griha → Storage**.
 
@@ -105,6 +108,12 @@ flowchart LR
 > Turning on **Theme my lock screen** replaces your current lock-screen picture. Griha cannot bring the old one back, so keep a copy first.
 
 ## ❓ FAQ and troubleshooting
+
+<details>
+<summary>How do I go back to an older version?</summary>
+
+Open **Settings → Updates and versions**, tap **Check for updates**, then **Roll back to this version** on the one you want. Android only installs an older version after the newer one is removed, so Griha first saves your settings and the older installer to files you choose, then opens Android's page for Griha, where you tap **Uninstall**. Install the saved file, make Griha your home app again, and tap **Restore settings**. Sticker and wallpaper pictures are not kept.
+</details>
 
 <details>
 <summary>Swiping up opens all apps too easily, or not at all</summary>
@@ -145,6 +154,8 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 The app is plain Kotlin with views built in code: no XML layouts, no AndroidX. Lint treats warnings as errors.
 Release builds read a signing key from `.signing/release.properties`, which is never committed.
+
+To publish a version, raise `versionCode` and `versionName` in `app/build.gradle.kts`, then push a tag such as `v0.5.0`. The **Release** workflow tests, lints, signs and publishes `griha-launcher-<version>.apk` with its SHA-256 checksum. It needs four repository secrets: `GRIHA_KEYSTORE_BASE64`, `GRIHA_KEYSTORE_PASSWORD`, `GRIHA_KEY_ALIAS` and `GRIHA_KEY_PASSWORD`. Use the key your installed Griha was signed with, or Android refuses the update.
 </details>
 
 ## Credits
