@@ -336,6 +336,7 @@ object Depth {
         val primary = role == Role.PRIMARY
         val small = role == Role.KEY
         val glowColor = if (colors.finish == UiStyle.TACTILE) AMBER else tint ?: colors.accent
+        colors.theme?.let { return it.depthSpec(colors, radius, role, fill, glow, density, border) }
         val spec = DepthSpec(radius * colors.finish.corners)
         spec.glowing = glow || primary && colors.finish != UiStyle.FLAT
         spec.focusRing = tone(colors.accent, 0.85f)
@@ -552,6 +553,7 @@ class FinishBackdrop(private val colors: Palette, private val density: Float, pr
             canvas.drawColor((colors.background and 0x00FFFFFF) or (scrim shl 24))
             return
         }
+        colors.theme?.let { return ThemeBackdrop.draw(canvas, b, colors, it, density) }
         canvas.drawColor(colors.background)
         val dark = colors.dark
         fun glow(x: Float, y: Float, r: Float, color: Int) {

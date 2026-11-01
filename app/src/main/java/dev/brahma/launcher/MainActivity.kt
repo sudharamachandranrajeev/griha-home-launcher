@@ -54,6 +54,7 @@ class MainActivity : Activity() {
     // Wallpaper thumbnails are drawn one at a time, so a long list never holds many big pictures at once.
     private val thumbnails by lazy { java.util.concurrent.Executors.newSingleThreadExecutor() }
     private val wallpaperFiles by lazy { WallpaperFiles(this) }
+    private val themeStore by lazy { ThemeStore(this) }
     private val luxe by lazy { LuxeStore(getSharedPreferences("luxe", MODE_PRIVATE)) }
     private var pendingExport: Bitmap? = null
     private var weatherLoading = false
@@ -71,7 +72,7 @@ class MainActivity : Activity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        settings = store.load()
+        settings = store.load().also(::syncTheme)
         appliedDark = settings.theme.isDark(resources.configuration)
         // The window theme styles system widgets and dialogs; screens draw their own palettes.
         setTheme(if (appliedDark) R.style.AppTheme_Dark else R.style.AppTheme)
@@ -136,7 +137,7 @@ class MainActivity : Activity() {
     override fun onResume() {
         super.onResume()
         refreshApps()
-        settings = store.load()
+        settings = store.load().also(::syncTheme)
         if (applyTheme()) return
         // A focus session that ran out while Griha was away ends now, and its apps come back.
         luxe.load().let { data -> data.settle(System.currentTimeMillis(), java.time.ZoneId.systemDefault()).let { if (it != data) luxe.save(it) } }
@@ -203,7 +204,7 @@ class MainActivity : Activity() {
                     return Toast.makeText(this, "That file isn't a Griha settings backup", Toast.LENGTH_LONG).show()
                 }
                 Toast.makeText(this, "Settings restored", Toast.LENGTH_SHORT).show()
-                settings = store.load()
+                settings = store.load().also(::syncTheme)
                 settingsCategory = null
                 recreate()
             }
@@ -341,7 +342,8 @@ class MainActivity : Activity() {
                     } catch (_: ActivityNotFoundException) {
                         Toast.makeText(this, R.string.app_unavailable, Toast.LENGTH_SHORT).show()
                     }
-                }))))
+                }),
+            themes = themeActions())))
     }
 
     /** Puts [root] on screen; with [drawerMotion], all apps opens or closes over home in that way. */
@@ -476,6 +478,107 @@ class MainActivity : Activity() {
             view.search.requestFocus()
             getSystemService(InputMethodManager::class.java)?.showSoftInput(view.search, InputMethodManager.SHOW_IMPLICIT)
         }
+    }
+
+    // ---- Themes ----
+
+    /** Loads the theme [changed] names into the engine, so palettes built from settings draw it. */
+    private fun syncTheme(changed: LauncherSettings) {
+        val id = changed.themeId
+        if (ThemeEngine.active?.id != id) ThemeEngine.active = id?.let { themeStore.load(it) }
+    }
+
+    private fun themeActions() = ThemeActions(
+        installed = { themeStore.installed() },
+        catalogue = { done ->
+            thread(name = "theme-catalogue") {
+                val result = try { ThemeStore.fetchIndex(cacheDir) to null } catch (e: Exception) {
+                    null to "Couldn't reach the theme catalogue. Check your connection and try again. (${e.message ?: e.javaClass.simpleName})"
+                }
+                runOnUiThread { done(result.first, result.second) }
+            }
+        },
+        preview = { source, width, done ->
+            thumbnails.execute {
+                val bitmap = try {
+                    val file = when (source) {
+                        is java.io.File -> source
+                        is String -> java.io.File(cacheDir, "theme-preview-" + Integer.toHexString(source.hashCode()) + ".png").also {
+                            if (!it.isFile) ThemeStore.download(source, it, 4L * 1024 * 1024)
+                        }
+                        else -> null
+                    }
+                    file?.let { WallpaperFiles.load(it, width * 4) }
+                } catch (_: Exception) { null }
+                runOnUiThread { if (screen == Screen.SETTINGS) done(bitmap) }
+            }
+        },
+        install = { entry -> installTheme(entry) },
+        use = { id -> useTheme(id) },
+        remove = { id ->
+            if (settings.themeId == id) useTheme(null)
+            themeStore.remove(id)
+            showSettings()
+        })
+
+    private fun installTheme(entry: CatalogueTheme) {
+        val url = entry.packageUrl ?: return
+        Toast.makeText(this, "Downloading ${entry.name}…", Toast.LENGTH_SHORT).show()
+        thread(name = "theme-download") {
+            val result: Pair<ThemeSpec?, String?> = try {
+                val file = java.io.File(cacheDir, "theme-${entry.id}.zip")
+                ThemeStore.download(url, file)
+                val spec = themeStore.install(entry, file)
+                file.delete()
+                spec to null
+            } catch (e: Exception) {
+                null to (e.message ?: e.javaClass.simpleName)
+            }
+            runOnUiThread {
+                val spec = result.first
+                if (spec == null) {
+                    AlertDialog.Builder(this).setTitle("Not installed").setMessage(result.second).setPositiveButton(android.R.string.ok, null).show()
+                    return@runOnUiThread
+                }
+                AlertDialog.Builder(this).setTitle("${spec.name} is ready")
+                    .setPositiveButton("Use it now") { _, _ -> useTheme(spec.id) }
+                    .setNegativeButton("Later") { _, _ -> showSettings() }
+                    .setOnCancelListener { showSettings() }
+                    .show()
+            }
+        }
+    }
+
+    /** Uses a downloaded theme, offering its own wallpaper; null goes back to Griha's finishes. */
+    private fun useTheme(id: String?) {
+        val spec = id?.let { themeStore.load(it) }
+        fun apply(withPicture: Boolean) {
+            var changed = settings.copy(themeId = spec?.id)
+            if (spec != null && withPicture) {
+                val home = spec.wallpaper(drawer = false)
+                val drawer = spec.wallpaper(drawer = true)
+                changed = changed.copy(
+                    homePicture = home?.let { WallChoice.ofThemeFile(spec.id, it) } ?: changed.homePicture,
+                    drawerSame = drawer == null || drawer == home,
+                    drawerPicture = drawer?.let { WallChoice.ofThemeFile(spec.id, it) } ?: changed.drawerPicture)
+            }
+            // A theme's own picture goes when the theme does.
+            if (spec == null) {
+                fun keep(choice: String?) = choice?.takeUnless { it.startsWith("pack:") }
+                changed = changed.copy(homePicture = keep(changed.homePicture), drawerPicture = keep(changed.drawerPicture))
+            }
+            settings = changed
+            store.save(changed)
+            ThemeEngine.active = spec
+            if (!applyTheme()) showSettings()
+        }
+        if (spec != null && spec.wallpaper(drawer = false) != null) {
+            AlertDialog.Builder(this).setTitle("Use ${spec.name}")
+                .setMessage("Also put its wallpaper behind home and all apps?")
+                .setPositiveButton("Theme and wallpaper") { _, _ -> apply(true) }
+                .setNegativeButton("Theme only") { _, _ -> apply(false) }
+                .show()
+        } else apply(false)
     }
 
     // ---- Updates ----
@@ -845,7 +948,7 @@ class MainActivity : Activity() {
     private fun dress(view: View, drawer: Boolean, colors: Palette, attach: (TouchBackdrop) -> Unit) {
         val motion = settings.wallMotion && Effects.enabled(settings)
         val choice = settings.pictureFor(drawer)
-        val source = WallChoice.source(choice, wallpaperFiles.list())
+        val source = WallChoice.source(choice, wallpaperFiles.list(), java.io.File(filesDir, "themes"))
         if (source == null) {
             if (settings.wallpaper) {
                 val system = SystemWallpaperMotion(WallpaperManager.getInstance(this), motion)

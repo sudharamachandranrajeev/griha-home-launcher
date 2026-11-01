@@ -40,9 +40,17 @@ object WallChoice {
         is WallpaperSource.Imported -> "file:${source.file.name}"
     }
 
-    fun source(choice: String?, files: List<java.io.File>): WallpaperSource? {
+    /** A picture shipped in a downloaded theme, as "pack:<theme id>/<path in the theme>". */
+    fun ofThemeFile(themeId: String, file: java.io.File) = "pack:$themeId/${file.parentFile?.name}/${file.name}"
+
+    fun source(choice: String?, files: List<java.io.File>, themes: java.io.File? = null): WallpaperSource? {
         val parts = choice?.split(':') ?: return null
         return when (parts.firstOrNull()) {
+            "pack" -> {
+                val path = parts.getOrNull(1) ?: return null
+                if (!Regex("[a-z0-9-]+/wallpapers/[a-z0-9-]+\\.(jpg|png|webp)").matches(path) || themes == null) return null
+                java.io.File(themes, path).takeIf { it.isFile }?.let { WallpaperSource.Imported(it) }
+            }
             "theme" -> {
                 val layout = HomeLayout.entries.find { it.name == parts.getOrNull(1) } ?: return null
                 val kind = WallpaperKind.entries.find { it.name == parts.getOrNull(2) } ?: return null
@@ -55,6 +63,7 @@ object WallChoice {
 
     fun title(choice: String?) = when {
         choice == null -> "None"
+        choice.startsWith("pack:") -> "Theme picture · ${choice.removePrefix("pack:").substringBefore('/')}"
         choice.startsWith("theme:") -> choice.split(':').let { parts ->
             "${HomeLayout.entries.find { it.name == parts.getOrNull(1) }?.title ?: "Theme"} · " +
                 (WallpaperKind.entries.find { it.name == parts.getOrNull(2) }?.title ?: "")
@@ -192,14 +201,27 @@ class WallpaperDrawable(
         tick()
     }
 
+    /** The tap light: a theme names it; otherwise each finish has its own. */
+    private val style: String = colors.theme?.pulse ?: when (colors.finish) {
+        UiStyle.SOFT -> "bloom"
+        UiStyle.TACTILE -> "glow"
+        UiStyle.GLASS -> "ripple"
+        UiStyle.CARVED -> "embers"
+        UiStyle.FLAT -> "faint"
+        UiStyle.LAYERED -> "ring"
+    }
+    /** Warm amber for the tactile finish's glow; a theme's glow takes its accent. */
+    private val glowTint = if (colors.theme == null && colors.finish == UiStyle.TACTILE) Depth.AMBER else colors.accent
+
     private fun pulse(x: Float, y: Float) {
-        val tint = when (colors.finish) {
-            UiStyle.GLASS -> Depth.glassTints[tints++ % Depth.glassTints.size]
-            UiStyle.TACTILE -> Depth.AMBER
-            UiStyle.SOFT -> Color.WHITE
+        if (style == "none") return
+        val tint = when (style) {
+            "ripple" -> Depth.glassTints[tints++ % Depth.glassTints.size]
+            "glow" -> glowTint
+            "bloom" -> Color.WHITE
             else -> colors.accent
         }
-        val sparks = if (colors.finish == UiStyle.CARVED) List(9) {
+        val sparks = if (style == "embers") List(9) {
             floatArrayOf(random.nextFloat() * 2 - 1, -(0.4f + random.nextFloat()), 0.6f + random.nextFloat() * 0.8f)
         } else emptyList()
         pulses += Pulse(x, y, SystemClock.uptimeMillis(), tint, sparks)
@@ -258,7 +280,7 @@ class WallpaperDrawable(
         // A soft light under a held finger.
         if (hold > 0.01f) {
             val r = 140 * density
-            val colour = if (colors.finish == UiStyle.TACTILE) Depth.AMBER else if (colors.finish == UiStyle.SOFT) Color.WHITE else colors.accent
+            val colour = when (style) { "glow" -> glowTint; "bloom" -> Color.WHITE; else -> colors.accent }
             spot(canvas, fingerX, fingerY, r, tone(colour, 0.10f * hold))
         }
         val clock = SystemClock.uptimeMillis()
@@ -266,24 +288,24 @@ class WallpaperDrawable(
             val t = ((clock - pulse.start) / PULSE_MS.toFloat()).coerceIn(0f, 1f)
             val fade = 1f - t
             val grow = 1f - (1f - t) * (1f - t)
-            when (colors.finish) {
-                UiStyle.SOFT -> spot(canvas, pulse.x, pulse.y, (60 + 140 * grow) * density, tone(Color.WHITE, 0.32f * fade))
-                UiStyle.LAYERED, UiStyle.FLAT -> {
-                    ring(canvas, pulse.x, pulse.y, (12 + 90 * grow) * density, 2 * density, tone(pulse.tint, (if (colors.finish == UiStyle.FLAT) 0.25f else 0.45f) * fade))
+            when (style) {
+                "bloom" -> spot(canvas, pulse.x, pulse.y, (60 + 140 * grow) * density, tone(Color.WHITE, 0.32f * fade))
+                "ring", "faint" -> {
+                    ring(canvas, pulse.x, pulse.y, (12 + 90 * grow) * density, 2 * density, tone(pulse.tint, (if (style == "faint") 0.25f else 0.45f) * fade))
                     spot(canvas, pulse.x, pulse.y, (30 + 60 * grow) * density, tone(pulse.tint, 0.10f * fade))
                 }
-                UiStyle.TACTILE -> {
-                    spot(canvas, pulse.x, pulse.y, (50 + 110 * grow) * density, tone(Depth.AMBER, 0.40f * fade * fade))
+                "glow" -> {
+                    spot(canvas, pulse.x, pulse.y, (50 + 110 * grow) * density, tone(pulse.tint, 0.40f * fade * fade))
                     spot(canvas, pulse.x, pulse.y, 26 * density, tone(Color.WHITE, 0.25f * fade))
                 }
-                UiStyle.GLASS -> for (k in 0..1) {
+                "ripple" -> for (k in 0..1) {
                     val tk = (t - k * 0.18f).coerceAtLeast(0f)
                     if (tk <= 0f) continue
                     val g = 1f - (1f - tk) * (1f - tk)
                     ring(canvas, pulse.x, pulse.y, (16 + 120 * g) * density, (3 - k) * density, tone(pulse.tint, 0.5f * (1f - tk)))
                     ring(canvas, pulse.x, pulse.y, (14 + 120 * g) * density, density, tone(Color.WHITE, 0.45f * (1f - tk)))
                 }
-                UiStyle.CARVED -> {
+                "embers" -> {
                     spot(canvas, pulse.x, pulse.y, (40 + 80 * grow) * density, tone(pulse.tint, 0.35f * fade))
                     glow.shader = null
                     pulse.sparks.forEach { s ->

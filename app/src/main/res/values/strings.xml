@@ -22,5 +22,6 @@
     </plurals>
     <string name="checking_updates">Checking GitHub for Griha versions…</string>
     <string name="no_releases">No versions are published yet.</string>
+    <string name="loading_themes">Fetching the theme catalogue…</string>
     <string name="at_time">At %1$s</string>
 </resources>

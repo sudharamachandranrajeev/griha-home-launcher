@@ -45,8 +45,16 @@ data class LauncherSettings(
     /** Griha's pictures drift and answer touches in the finish's style. */
     val wallMotion: Boolean = true,
     /** How much of the page colour lies over Griha's pictures, 0 to 1, so text stays readable. */
-    val wallDim: Float = 0.35f
+    val wallDim: Float = 0.35f,
+    /** A downloaded theme in use; null uses the finish and layout colours. */
+    val themeId: String? = null
 ) {
+    /** The theme in use, once MainActivity has loaded it into [ThemeEngine.active]. */
+    fun activeTheme() = themeId?.let { id -> ThemeEngine.active?.takeIf { it.id == id } }
+
+    // A theme draws its own surfaces, so the flat finish's plain views give way to drawn ones under a theme.
+    private fun themeBase() = if (uiStyle == UiStyle.FLAT) UiStyle.SOFT else uiStyle
+
     /** The picture behind home, or all apps when [drawer]; null when there is none. */
     fun pictureFor(drawer: Boolean) = if (drawer && !drawerSame) drawerPicture else homePicture
 
@@ -55,7 +63,8 @@ data class LauncherSettings(
     fun iconKit(colors: Palette) = IconKit(iconStyle, iconShape, iconPlate, iconPack, colors)
 
     /** Colours for settings and editors: the Luxe theme carries its gold everywhere, other layouts use the calm settings colours. */
-    fun uiPalette(dark: Boolean) = if (layout == HomeLayout.LUXE) homePalette(dark) else settingsPalette(dark, uiStyle)
+    fun uiPalette(dark: Boolean) = activeTheme()?.palette(dark, themeBase())
+        ?: if (layout == HomeLayout.LUXE) homePalette(dark) else settingsPalette(dark, uiStyle)
 
     /**
      * Home's colours in the chosen finish. With [finishColours], the page, cards, text and accent
@@ -63,6 +72,7 @@ data class LauncherSettings(
      * keeps its own [Palette.secondary] for its art. Luxe is a theme of its own and keeps its gold.
      */
     fun homePalette(dark: Boolean): Palette {
+        activeTheme()?.let { return it.palette(dark, themeBase()) }
         val own = layout.palette(dark).copy(finish = uiStyle)
         if (!finishColours || uiStyle == UiStyle.FLAT || layout == HomeLayout.LUXE) return own
         val board = settingsPalette(dark, uiStyle)
@@ -101,7 +111,8 @@ class SettingsStore(private val preferences: SharedPreferences) {
         drawerSame = preferences.getBoolean("drawer_same", true),
         drawerPicture = preferences.getString("drawer_picture", null),
         wallMotion = preferences.getBoolean("wall_motion", true),
-        wallDim = preferences.getFloat("wall_dim", 0.35f)
+        wallDim = preferences.getFloat("wall_dim", 0.35f),
+        themeId = preferences.getString("theme_id", null)
     )
 
     fun save(settings: LauncherSettings) {
@@ -133,6 +144,7 @@ class SettingsStore(private val preferences: SharedPreferences) {
             .putString("drawer_picture", settings.drawerPicture)
             .putBoolean("wall_motion", settings.wallMotion)
             .putFloat("wall_dim", settings.wallDim)
+            .putString("theme_id", settings.themeId)
             .apply()
         if (!settings.lockScreen) saveLockKey(null)
         if (!settings.weather) clearWeather()

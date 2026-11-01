@@ -33,7 +33,21 @@ class SettingsActions(
     /** Opens one category's page, or the list of categories for null. */
     val onCategory: (SettingsCategory?) -> Unit,
     val onDone: () -> Unit,
-    val updates: UpdateActions
+    val updates: UpdateActions,
+    val themes: ThemeActions
+)
+
+class ThemeActions(
+    /** Downloaded themes, newest state from disk. */
+    val installed: () -> List<ThemeSpec>,
+    /** Fetches the catalogue; the callback runs on the main thread with themes or an error message. */
+    val catalogue: (done: (List<CatalogueTheme>?, String?) -> Unit) -> Unit,
+    /** Loads a preview picture from a file or a catalogue address; null when it can't. */
+    val preview: (source: Any, width: Int, done: (android.graphics.Bitmap?) -> Unit) -> Unit,
+    val install: (CatalogueTheme) -> Unit,
+    /** Uses a downloaded theme, or none for null. */
+    val use: (String?) -> Unit,
+    val remove: (String) -> Unit
 )
 
 class UpdateActions(
@@ -54,6 +68,7 @@ enum class SettingsCategory(val title: String, val summary: String) {
     ICONS("App icons", "Icon style, shape, plate, icon packs"),
     LOCK("Lock screen", "Themed lock wallpaper and its design"),
     STICKERS("Stickers", "Cut-out photos on home"),
+    THEMES("Themes", "Downloaded looks: get more, use or remove them"),
     UPDATES("Updates and versions", "Update, roll back, back up settings"),
     ANDROID("Android", "Default home app")
 }
@@ -106,6 +121,7 @@ class SettingsScreen(
             SettingsCategory.LOCK -> buildLock()
             SettingsCategory.STICKERS -> buildStickers()
             SettingsCategory.UPDATES -> buildUpdates()
+            SettingsCategory.THEMES -> buildThemes()
             SettingsCategory.ANDROID -> {
                 section("Android")
                 group.addView(context.action("Choose default home app", accent, actions.onHomeApp))
@@ -278,6 +294,83 @@ class SettingsScreen(
         })
     }
 
+    private fun buildThemes() {
+        val installed = actions.themes.installed()
+        val inUse = installed.find { it.id == current.themeId }
+        section("In use")
+        group.addView(context.label(inUse?.name ?: "No theme · ${current.uiStyle.title.substringBefore(" ·")} finish", 17f, ink, Typeface.BOLD))
+        group.addView(context.label(inUse?.description ?: "Griha's own finish and your layout's colours. A theme replaces both while it is in use.", 14f, muted))
+        if (inUse != null) group.addView(context.action("Stop using this theme", accent) { actions.themes.use(null) })
+
+        section("Downloaded")
+        if (installed.isEmpty()) group.addView(context.label("None yet. Get one from the catalogue below.", 14f, muted))
+        installed.forEach { theme -> group.addView(themeCard(theme.name, theme.description, theme.preview(), null) {
+            if (theme.id != current.themeId) addView(context.action("Use", accent) { actions.themes.use(theme.id) })
+            addView(context.action("Remove", accent) {
+                android.app.AlertDialog.Builder(context).setTitle("Remove ${theme.name}?")
+                    .setMessage("Its files are deleted from this phone. You can download it again from the catalogue.")
+                    .setPositiveButton("Remove") { _, _ -> actions.themes.remove(theme.id) }
+                    .setNegativeButton(R.string.cancel, null).show()
+            })
+        }) }
+
+        section("Get more themes")
+        group.addView(context.label("The catalogue lives at github.com/sudharamachandranrajeev/griha-themes. Griha asks for it only " +
+            "when you tap below. Themes are data only: colours, surfaces, light and pictures, checked against their published " +
+            "SHA-256 before they are used.", 14f, muted))
+        val status = context.label("", 14f, muted)
+        val list = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }
+        group.addView(context.action("Show the catalogue", accent) {
+            status.text = context.getString(R.string.loading_themes)
+            list.removeAllViews()
+            actions.themes.catalogue { themes, error ->
+                status.text = error ?: if (themes.isNullOrEmpty()) "The catalogue is empty." else ""
+                themes?.forEach { entry ->
+                    val have = installed.find { it.id == entry.id }
+                    val missing = entry.missing()
+                    val note = when {
+                        missing.isNotEmpty() -> "Needs a newer Griha"
+                        entry.packageUrl == null -> entry.status.ifBlank { "Not available yet" }
+                        have != null && have.version >= entry.version -> "Downloaded"
+                        have != null -> "Update available"
+                        else -> "${(entry.packageSize + 1023) / 1024} KB"
+                    }
+                    list.addView(themeCard(entry.name, entry.description, entry.previewUrl, note) {
+                        if (missing.isEmpty() && entry.packageUrl != null && (have == null || have.version < entry.version)) {
+                            addView(context.action(if (have == null) "Download" else "Update", accent) { actions.themes.install(entry) })
+                        }
+                    })
+                }
+            }
+        })
+        group.addView(status)
+        group.addView(list)
+    }
+
+    // A theme: its preview beside its name, description, a note and its buttons.
+    private fun themeCard(name: String, description: String, preview: Any?, note: String?, buttons: LinearLayout.() -> Unit) =
+        LinearLayout(context).apply {
+            setPadding(context.dp(12), context.dp(12), context.dp(12), context.dp(12))
+            depth(colors, context.dp(16).toFloat(), Role.KEY, border = colors.secondary)
+            layoutParams = LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, context.dp(8), 0, context.dp(8)) }
+            val picture = ImageView(context).apply {
+                scaleType = ImageView.ScaleType.CENTER_CROP
+                importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO
+                roundClip(context.dp(10).toFloat())
+                setBackgroundColor(colors.background)
+            }
+            addView(picture, LinearLayout.LayoutParams(context.dp(64), context.dp(138)))
+            if (preview != null) actions.themes.preview(preview, context.dp(64)) { picture.setImageBitmap(it) }
+            addView(LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(context.dp(14), 0, 0, 0)
+                addView(context.label(name, 17f, ink, Typeface.BOLD))
+                if (note != null) addView(context.label(note, 12f, accent, Typeface.BOLD))
+                addView(context.label(description, 13f, muted).apply { setPadding(0, context.dp(4), 0, 0) })
+                addView(LinearLayout(context).apply(buttons))
+            }, LinearLayout.LayoutParams(0, -2, 1f))
+        }
+
     private fun buildUpdates() {
         val installed = Updates.installedVersion(context)
         section("This phone")
@@ -384,13 +477,14 @@ class SettingsScreen(
     private fun section(title: String) {
         body.addView(View(context), LinearLayout.LayoutParams(1, context.dp(if (softStyle) 18 else 24)))
         val finish = colors.finish
-        body.addView(context.label(if (finish.headingCaps) title.uppercase() else title, if (finish.headingCaps) 12f else 15f,
-            if (finish.headingCaps) accent else ink, Typeface.BOLD).apply {
-            letterSpacing = finish.headingSpacing
+        val caps = colors.theme?.headingCaps ?: finish.headingCaps
+        body.addView(context.label(if (caps) title.uppercase() else title, if (caps) 12f else 15f,
+            if (caps) accent else ink, Typeface.BOLD).apply {
+            letterSpacing = colors.theme?.headingSpacing ?: finish.headingSpacing
             setPadding(context.dp(4), 0, 0, context.dp(6))
         })
         // The styleguide underlines each section title with a hairline.
-        if (finish == UiStyle.LAYERED) body.addView(View(context).apply { setBackgroundColor(tone(ink, 0.25f)) },
+        if (finish == UiStyle.LAYERED && colors.theme == null) body.addView(View(context).apply { setBackgroundColor(tone(ink, 0.25f)) },
             LinearLayout.LayoutParams(-1, context.dp(1)).apply { setMargins(context.dp(4), 0, context.dp(4), context.dp(10)) })
         if (!softStyle) return
         val tint = if (finish == UiStyle.GLASS) Depth.glassTints[sections++ % Depth.glassTints.size] else null

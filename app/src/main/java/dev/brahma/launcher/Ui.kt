@@ -86,6 +86,8 @@ fun View.soft(colors: Palette, radius: Float, fill: Int = colors.surface, glow: 
  * stands up from a pressed-in track, which fills and glows with the accent when on.
  */
 fun CompoundButton.accent(colors: Palette) {
+    // The label follows the palette, not the window theme, so it stays readable on any theme's page.
+    setTextColor(colors.ink)
     val states = arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf())
     if (colors.finish == UiStyle.FLAT) {
         buttonTintList = ColorStateList(states, intArrayOf(colors.accent, colors.muted))

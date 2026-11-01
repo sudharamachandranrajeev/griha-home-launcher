@@ -23,7 +23,9 @@ data class Palette(
     val muted: Int,
     val dark: Boolean,
     /** How surfaces are drawn: shadows, glow and edges. */
-    val finish: UiStyle = UiStyle.SOFT
+    val finish: UiStyle = UiStyle.SOFT,
+    /** A downloaded theme drawing these colours; it overrides the finish's surfaces, page and touch light. */
+    val theme: ThemeSpec? = null
 ) {
     val onInk get() = background
     val onAccent get() = if (dark) background else Color.WHITE
