@@ -18,8 +18,11 @@ import kotlin.math.max
  * refused rather than drawn wrong.
  */
 object ThemeEngine {
-    const val VERSION = 1
+    const val VERSION = 2
     val FEATURES = setOf(
+        // Engine 2: the theme's own home, built from blocks.
+        "home.blocks", "widget.ring", "widget.well", "widget.pill-week", "widget.meters", "type.vertical",
+        "icons.dot", "icons.badge", "state.colours",
         "palette.v1",
         "depth.shadows", "depth.inner", "depth.rim", "depth.lip", "depth.gloss", "depth.glow", "depth.outline",
         "backdrop.plain", "backdrop.light", "backdrop.grid", "backdrop.haze", "backdrop.vignette",
@@ -52,6 +55,23 @@ class ThemeSpec private constructor(private val json: JSONObject, val dir: File?
     val headingSpacing: Float = headings.optDouble("spacing", 0.08).toFloat()
     val backdrop: JSONObject = json.optJSONObject("backdrop") ?: JSONObject().put("kind", "plain")
     val peel: JSONObject? = json.optJSONObject("decor")?.optJSONObject("peel")
+    /** The theme's own home: a list of blocks (engine 2); null keeps the chosen home layout. */
+    val home: JSONArray? = json.optJSONArray("home")
+
+    /** A named extra colour from the palette for this mode, such as "sun" or "butter". */
+    fun extra(name: String, dark: Boolean): Int? = json.optJSONObject("palette")?.optJSONObject(if (dark) "dark" else "light")
+        ?.optJSONObject("extras")?.optString(name)?.takeIf { it.startsWith("#") }?.let { parseHex(it.substringBefore('@')) }
+
+    /** Colours for app dots and plates, in turn. */
+    fun dots(): List<Int> = json.optJSONObject("icons")?.optJSONArray("dots")?.let { a ->
+        (0 until a.length()).mapNotNull { a.optString(it).takeIf { s -> s.startsWith("#") }?.let(::parseHex) } } ?: emptyList()
+
+    /** Fills for each button state, in order, for themes whose buttons change colour by state. */
+    fun stateColours(c: Palette): List<Int> = json.optJSONObject("states")?.let { s ->
+        listOf("default", "hover", "focus", "pressed", "busy", "done").mapNotNull { key -> s.optString(key).takeIf { it.isNotEmpty() } }
+            .map { colour(it, c) }
+    } ?: emptyList()
+
     /** The tap light: bloom, ring, glow, ripple, embers or none. */
     val pulse: String = json.optJSONObject("touch")?.optString("pulse", "ring") ?: "ring"
 

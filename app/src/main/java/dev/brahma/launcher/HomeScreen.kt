@@ -115,6 +115,8 @@ class HomeScreen(
     private var searchField: EditText? = null
     private var arranger: StickerLayer? = null
     private val arrangingNow = arranging
+    // A theme home with its own bar or tabs needs no All apps and Settings keys at the bottom.
+    private var ownNavigation = false
 
     init {
         isFillViewport = true
@@ -136,7 +138,8 @@ class HomeScreen(
         addView(frame)
         // Touch and hold empty home space for settings, as most launchers do.
         body.setOnLongClickListener { actions.onSettings(); true }
-        when (style) {
+        val themeHome = colors.theme?.home?.takeIf { settings.themeHome }
+        if (themeHome != null) buildThemeHome(themeHome) else when (style) {
             HomeLayout.MONO -> buildMono()
             HomeLayout.EDITORIAL -> buildEditorial()
             HomeLayout.CARDS -> buildCards()
@@ -150,8 +153,8 @@ class HomeScreen(
             space(20)
             body.addView(context.label(settings.footer, 12f, muted, Typeface.ITALIC).apply { gravity = Gravity.CENTER })
         }
-        // Luxe has its own bottom bar with the same two ways out.
-        if (style != HomeLayout.LUXE) {
+        // Luxe and themes with their own bar or tabs already have the two ways out.
+        if (style != HomeLayout.LUXE && !ownNavigation) {
             space(12)
             body.addView(LinearLayout(context).apply {
                 gravity = Gravity.CENTER
@@ -555,9 +558,32 @@ class HomeScreen(
         appList(iconSize = 28, textSize = 20f)
     }
 
-    // ---- Soft glass: soft UI kit reference ----
+    // ---- Theme homes and the glass layout: built from blocks ----
 
-    private fun buildSoft() {
+    private fun kit() = HomeKit(context, colors, colors.theme, settings, favorites, shortcuts, actions, use24Hour, locale,
+        tick = { tickers += it }, battery = { percent to charging }, weather = { shownWeather() }, icon = { icon(it) },
+        clock = { size, colour -> clock(size, colour) })
+
+    private fun buildThemeHome(blocks: org.json.JSONArray) {
+        val builder = ThemeHome(kit())
+        ownNavigation = builder.hasNavigation(blocks)
+        builder.build(blocks, body)
+    }
+
+    /**
+     * Soft glass, redrawn after the glass components board: a frosted clock card, chips, clear pill
+     * keys with coloured rims for favourites, a glass dock and a bottom bar.
+     */
+    private fun buildSoft() = buildThemeHome(org.json.JSONArray("""[
+        {"type":"clockCard","style":"glass","gap":4},
+        {"type":"chips"},
+        {"type":"apps","style":"glass","count":6},
+        {"type":"dock","style":"glass","count":5,"gap":22},
+        {"type":"nav"}
+    ]"""))
+
+    @Suppress("unused")
+    private fun buildSoftClassic() {
         val row = LinearLayout(context)
         row.addView(railView(), LinearLayout.LayoutParams(dp(64), -2).apply { setMargins(0, dp(4), dp(16), dp(4)) })
         val column = LinearLayout(context).apply { orientation = LinearLayout.VERTICAL }

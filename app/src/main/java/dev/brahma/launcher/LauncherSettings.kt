@@ -47,7 +47,9 @@ data class LauncherSettings(
     /** How much of the page colour lies over Griha's pictures, 0 to 1, so text stays readable. */
     val wallDim: Float = 0.35f,
     /** A downloaded theme in use; null uses the finish and layout colours. */
-    val themeId: String? = null
+    val themeId: String? = null,
+    /** A theme with its own home layout shows it instead of the chosen layout. */
+    val themeHome: Boolean = true
 ) {
     /** The theme in use, once MainActivity has loaded it into [ThemeEngine.active]. */
     fun activeTheme() = themeId?.let { id -> ThemeEngine.active?.takeIf { it.id == id } }
@@ -112,7 +114,8 @@ class SettingsStore(private val preferences: SharedPreferences) {
         drawerPicture = preferences.getString("drawer_picture", null),
         wallMotion = preferences.getBoolean("wall_motion", true),
         wallDim = preferences.getFloat("wall_dim", 0.35f),
-        themeId = preferences.getString("theme_id", null)
+        themeId = preferences.getString("theme_id", null),
+        themeHome = preferences.getBoolean("theme_home", true)
     )
 
     fun save(settings: LauncherSettings) {
@@ -145,6 +148,7 @@ class SettingsStore(private val preferences: SharedPreferences) {
             .putBoolean("wall_motion", settings.wallMotion)
             .putFloat("wall_dim", settings.wallDim)
             .putString("theme_id", settings.themeId)
+            .putBoolean("theme_home", settings.themeHome)
             .apply()
         if (!settings.lockScreen) saveLockKey(null)
         if (!settings.weather) clearWeather()

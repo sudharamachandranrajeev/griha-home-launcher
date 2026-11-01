@@ -103,4 +103,10 @@ class WeatherTest {
         assertEquals(true, Weather.usesFahrenheit(Locale.US))
         assertEquals(false, Weather.usesFahrenheit(Locale.UK))
     }
+
+    @org.junit.Test
+    fun panelLineIsShortAndPlain() {
+        val at = java.time.LocalDateTime.of(2026, 11, 3, 8, 41)
+        org.junit.Assert.assertEquals("It's 8:41 AM. Battery is 72%.", HomeText.panelLine(at, null, 72, false, false, java.util.Locale.US).replace('\u202f', ' '))
+    }
 }

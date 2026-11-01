@@ -57,8 +57,8 @@ class ThemeStoreTest {
 
     @Test
     fun refusesFeaturesThisGrihaLacks() {
-        val spec = ThemeSpec.parse(theme.replace("\"depth.outline\"", "\"widget.ring\"").replace("\"engine\":1", "\"engine\":3"))
-        assertEquals(setOf("widget.ring", "engine 3"), spec.missing())
+        val spec = ThemeSpec.parse(theme.replace("\"depth.outline\"", "\"depth.flare\"").replace("\"engine\":1", "\"engine\":3"))
+        assertEquals(setOf("depth.flare", "engine 3"), spec.missing())
     }
 
     @Test
@@ -106,7 +106,7 @@ class ThemeStoreTest {
     fun readsTheCatalogueIndex() {
         val index = """{"themes":[{"id":"a","name":"A","version":1,"engine":1,"requires":["palette.v1"],"status":"available",
             "preview":"https://e/a.png","package":{"url":"https://e/a.griha-theme","sha256":"ABC","size":10}},
-            {"id":"b","engine":2,"requires":["widget.ring"],"status":"waiting"}]}"""
+            {"id":"b","engine":3,"requires":["depth.flare"],"status":"waiting"}]}"""
         val themes = ThemeStore.parseIndex(index)
         assertEquals("abc", themes[0].packageSha256)
         assertTrue(themes[0].missing().isEmpty())

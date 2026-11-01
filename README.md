@@ -29,8 +29,8 @@ Status: **beta (0.5)**, used daily on one phone. One honest limit: it does not h
 
 ## ✨ What it does
 
-- 🏠 **Eight home looks** – Mono, Editorial, Soft cards, Arches, Night list, Dial clock, Soft glass and Dark luxury gold. Switch any time.
-- 🎨 **Downloadable themes** – Pastel Neo, Candy Gloss, Lime Blob, Tangerine Peel, Clay Bloom, Midnight Jelly, Berry Wave, Teal Fold and more from [griha-themes](https://github.com/sudharamachandranrajeev/griha-themes). Data only, checked before use, and removable.
+- 🏠 **Eight home looks** – Mono, Editorial, Soft cards, Arches, Night list, Dial clock, Soft glass (frosted clock, rimmed glass pills, a glass dock) and Dark luxury gold. Switch any time.
+- 🎨 **Downloadable themes with their own home** – each brings its own layout as well as its colours: Pastel Neo, Candy Gloss, Lime Blob, Tangerine Peel, Clay Bloom, Midnight Jelly, Berry Wave, Teal Grid and more from [griha-themes](https://github.com/sudharamachandranrajeev/griha-themes). Data only, checked before use, and removable.
 - 🧊 **Six surface finishes** – Soft (raised and pressed, lit from the top left), Layered (stacked shadows and an accent glow), Tactile (thick keys with a warm glow), Glass (clear with coloured rims), Carved (dark bevels and an ember glow) and Flat. Cards, buttons, search fields, switches and sliders across home, all apps and settings take the finish you pick.
 - 👑 **Luxe home** – gold cards for your day: a schedule checklist, a daily ring, a forgiving streak, a focus mode that hides chosen apps, quotes and a roadmap.
 - 👆 **Swipe for all apps** – at the end of home, swipe up for every app; at the top of the list, swipe down to go home. You pick the swipe length and the animation.

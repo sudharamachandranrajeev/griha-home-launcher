@@ -85,6 +85,12 @@ object HomeText {
         return "Today is $day.$outside Current time is ${time(now, use24Hour, locale)}."
     }
 
+    /** One short line for a theme's info panel: the time, the weather when shown, and the battery. */
+    fun panelLine(now: LocalDateTime, weather: WeatherNow?, percent: Int?, charging: Boolean, use24Hour: Boolean, locale: Locale): String {
+        val outside = weather?.let { ", ${Weather.describe(it.code)} at ${it.rounded()}" } ?: ""
+        return "It's ${time(now, use24Hour, locale)}$outside. ${batteryShort(percent, charging)}."
+    }
+
     fun battery(percent: Int?, charging: Boolean): String = when {
         percent == null -> "BATTERY LEVEL UNAVAILABLE"
         charging -> "BATTERY LEVEL AT $percent% · CHARGING"

@@ -171,6 +171,10 @@ class SettingsScreen(
 
     private fun buildHome() {
         section("Home layout")
+        if (current.themeId != null) {
+            toggle("Use the theme's own home layout", current.themeHome) { update(current.copy(themeHome = it)) }
+            group.addView(context.label("While on, the theme's home replaces the layout chosen below.", 14f, muted))
+        }
         choices(HomeLayout.entries.map { it.title }, current.layout.ordinal) { update(current.copy(layout = HomeLayout.entries[it])) }
         if (current.layout == HomeLayout.LUXE) {
             group.addView(context.label("Gold on near-black across home, apps, settings and editors. At the end of home, swipe up for all apps.", 14f, muted))
