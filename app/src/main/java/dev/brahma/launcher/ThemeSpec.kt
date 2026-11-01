@@ -31,7 +31,9 @@ object ThemeEngine {
         "touch.bloom", "touch.ring", "touch.glow", "touch.ripple", "touch.embers",
         "headings.style", "font.system",
         // Griha 0.7.0: the theme dresses the lock screen and, gently, the photo's subject.
-        "lock.theme", "lock.subject"
+        "lock.theme", "lock.subject",
+        // Griha 0.8.0: the theme's clock piece, in its date edition, on the lock screen.
+        "lock.clock"
     )
 
     /** The theme in use, loaded once when settings change; null draws the built-in finish. */
@@ -80,6 +82,13 @@ class ThemeSpec private constructor(private val json: JSONObject, val dir: File?
     val lockSubject: SubjectLook? = SubjectLook.ofTheme(lock.optString("subject"))
     /** How strongly, 0 to 1; themes keep it subtle. */
     val lockAmount: Float = lock.optDouble("amount", 0.35).toFloat().coerceIn(0f, 1f)
+    /** The clock piece for the lock screen: a block or a list of blocks; null takes the home's first clock. */
+    val lockClock: JSONArray? = lock.opt("clock").let { when (it) {
+        is JSONArray -> it
+        is JSONObject -> JSONArray().put(it)
+        else -> null
+    } }
+
     /** The lettering for the lock date: thin, heavy, bold, condensed, serif or script. */
     val lockFont: LockFont? = LockFont.entries.find { it.name.equals(lock.optString("font"), ignoreCase = true) }
 

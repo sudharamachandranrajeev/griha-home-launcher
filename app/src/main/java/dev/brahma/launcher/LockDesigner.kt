@@ -108,7 +108,7 @@ class LockDesigner(
         controls.removeAllViews()
         toggle("Use my design", design.custom) { change(design.copy(custom = it), rebuild = true) }
         if (!design.custom) {
-            controls.addView(context.label(if (theme != null) "Off: the lock screen wears ${theme.name}: its picture, lettering and colours."
+            controls.addView(context.label(if (theme != null) "Off: the lock screen wears ${theme.name}: its picture, colours and clock piece, showing the date under Android's clock."
                 else "Off: the lock screen follows your home layout and colours.", 14f, colors.muted))
             post { scrollTo(0, keep) }
             return
@@ -187,6 +187,11 @@ class LockDesigner(
         section("Theme")
         if (theme != null) {
             toggle("Use ${theme.name}'s colours for the text and plain backgrounds", design.followTheme) { change(design.copy(followTheme = it)) }
+            if (theme.lockClock != null || theme.home != null) {
+                toggle("Show ${theme.name}'s clock piece instead of my text", design.themeClock) { change(design.copy(themeClock = it)) }
+                controls.addView(context.label("The piece shows the date; Android's own clock above it keeps the time. " +
+                    "Not used with the iOS-style giant date.", 14f, colors.muted))
+            }
         } else {
             controls.addView(context.label("No downloaded theme is in use, so the subject is styled in your home accent.", 14f, colors.muted))
         }

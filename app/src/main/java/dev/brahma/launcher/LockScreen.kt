@@ -72,7 +72,9 @@ data class LockDesign(
     val followTheme: Boolean = true,
     /** A light touch of the theme's colour on the subject; the photo behind is never changed. */
     val subjectLook: SubjectLook = SubjectLook.THEME,
-    val subjectAmount: Float = 0.35f
+    val subjectAmount: Float = 0.35f,
+    /** Under a theme, its clock piece (date edition) stands in for the date text. */
+    val themeClock: Boolean = false
 ) {
     fun encode(): String = JSONObject().apply {
         put("custom", custom)
@@ -101,6 +103,7 @@ data class LockDesign(
         put("follow_theme", followTheme)
         put("subject_look", subjectLook.name)
         put("subject_amount", subjectAmount.toDouble())
+        put("theme_clock", themeClock)
     }.toString()
 
     companion object {
@@ -134,7 +137,8 @@ data class LockDesign(
                     blur = LockBlur.decode(item.optJSONObject("blur")),
                     followTheme = item.optBoolean("follow_theme", true),
                     subjectLook = SubjectLook.entries.find { it.name == item.optString("subject_look") } ?: SubjectLook.THEME,
-                    subjectAmount = item.optDouble("subject_amount", 0.35).toFloat().coerceIn(0f, 1f)
+                    subjectAmount = item.optDouble("subject_amount", 0.35).toFloat().coerceIn(0f, 1f),
+                    themeClock = item.optBoolean("theme_clock")
                 )
             } catch (_: org.json.JSONException) {
                 LockDesign()
@@ -182,7 +186,10 @@ object LockScreen {
             // No band is cleared: a theme's page is calm enough for Android's clock, and a cut would break its art.
             val font = theme.lockFont ?: LockFont.THIN
             val face = if (font == LockFont.SCRIPT) context.resources.getFont(R.font.dancing_script) else Typeface.create(font.family, font.style)
-            if (picture != null) {
+            val piece = clockPiece(context, settings, colors, theme, width, picture != null)
+            if (piece != null) {
+                canvas.drawBitmap(piece, 0f, height * (CLOCK_BOTTOM + 0.03f), Paint(Paint.FILTER_BITMAP_FLAG))
+            } else if (picture != null) {
                 // The theme's picture may be dark in light mode or light in dark mode, so the text reads the picture.
                 val under = average(bitmap, height * 0.5f, height * 0.75f)
                 val ink = if (ThemeSpec.luminance(under) < 0.3f) Color.WHITE else 0xFF111111.toInt()
@@ -302,11 +309,65 @@ object LockScreen {
         val second = if (onImage) ink else colors.ink
         val third = if (onImage) (ink and 0x00FFFFFF) or 0xE6000000.toInt() else colors.muted
         if (!design.depth) drawSubject()
-        if (depthText != null) depthText.draw(canvas, main, if (onImage) ink else colors.ink, design.shadow, design.style)
+        val piece = if (design.themeClock && theme != null && depthText == null) clockPiece(context, settings, colors, theme, width, onImage) else null
+        if (piece != null) {
+            val top = height * textTop - width * 0.2f
+            canvas.drawBitmap(piece, 0f, if (design.clearClock) maxOf(top, clockBottom) else top, Paint(Paint.FILTER_BITMAP_FLAG))
+        }
+        else if (depthText != null) depthText.draw(canvas, main, if (onImage) ink else colors.ink, design.shadow, design.style)
         else drawText(canvas, now, settings.name, locale, width, height, textTop, 0.5f + design.textSize, main, second, third,
             typeface, design.shadow, design.style)
         if (design.depth) drawSubject()
         return bitmap
+    }
+
+    /**
+     * The theme's clock piece in its date edition, [width] pixels wide with room around it for its
+     * shadows, or null when the theme has none. Views are built on the main thread, as Android expects.
+     */
+    private fun clockPiece(context: Context, settings: LauncherSettings, colors: Palette, theme: ThemeSpec, width: Int, onPhoto: Boolean): Bitmap? =
+        onMain {
+            val screen = context.resources.displayMetrics.widthPixels.coerceAtLeast(1)
+            val scale = width / screen.toFloat()
+            val preferences = context.getSharedPreferences("lock-piece", Context.MODE_PRIVATE)
+            val none: () -> Unit = {}
+            val actions = HomeActions({ _, _ -> }, {}, none, none, none, none, none, none, {}, none, {}, LuxeHooks(LuxeStore(preferences), none, none))
+            val kit = HomeKit(context, colors, theme, settings, emptyList(), emptyList(), actions,
+                android.text.format.DateFormat.is24HourFormat(context), context.resources.configuration.locales[0],
+                tick = { it() }, battery = { null to false }, weather = { null }, icon = { View(context) },
+                clock = { size, colour -> android.widget.TextClock(context).apply { textSize = size; setTextColor(colour) } }, lock = true)
+            val piece = ThemeHome(kit).lockPiece(theme, onPhoto) ?: return@onMain null
+            val margin = (20 * context.resources.displayMetrics.density).toInt()
+            val frame = android.widget.FrameLayout(context).apply {
+                setPadding(margin, margin, margin, margin)
+                addView(piece, android.widget.FrameLayout.LayoutParams(-1, -2))
+            }
+            unclip(frame)
+            frame.measure(View.MeasureSpec.makeMeasureSpec(screen, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
+            frame.layout(0, 0, frame.measuredWidth, frame.measuredHeight)
+            val bitmap = Bitmap.createBitmap(width, (frame.measuredHeight * scale).toInt().coerceAtLeast(1), Bitmap.Config.ARGB_8888)
+            Canvas(bitmap).apply { scale(scale, scale); frame.draw(this) }
+            bitmap
+        }
+
+    // Off screen nothing is attached, so shadows are let out of every box by hand.
+    private fun unclip(view: View) {
+        if (view !is android.view.ViewGroup) return
+        view.clipChildren = false
+        view.clipToPadding = false
+        for (i in 0 until view.childCount) unclip(view.getChildAt(i))
+    }
+
+    private fun <T> onMain(block: () -> T?): T? {
+        val main = android.os.Looper.getMainLooper()
+        if (android.os.Looper.myLooper() == main) return try { block() } catch (_: RuntimeException) { null }
+        var result: T? = null
+        val done = java.util.concurrent.CountDownLatch(1)
+        android.os.Handler(main).post {
+            try { result = block() } catch (_: RuntimeException) { result = null } finally { done.countDown() }
+        }
+        done.await(5, java.util.concurrent.TimeUnit.SECONDS)
+        return result
     }
 
     /** Fades [colour] over the top of the picture so decoration does not fight Android's clock. */

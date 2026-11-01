@@ -13,7 +13,7 @@ class LockThemeTest {
 
     @Test
     fun lockDesignKeepsThemeChoices() {
-        val design = LockDesign(custom = true, followTheme = false, subjectLook = SubjectLook.DUOTONE, subjectAmount = 0.6f)
+        val design = LockDesign(custom = true, followTheme = false, subjectLook = SubjectLook.DUOTONE, subjectAmount = 0.6f, themeClock = true)
         val back = LockDesign.decode(design.encode())
         assertEquals(design, back)
     }
@@ -53,5 +53,12 @@ class LockThemeTest {
             val shade = LockScreen.readable(0xFFC21E5F.toInt(), under)
             assertTrue("on ${Integer.toHexString(under)}", ThemeSpec.contrast(shade, under) >= ThemeSpec.MIN_CONTRAST)
         }
+    }
+
+    @Test
+    fun lockClockTakesABlockOrAList() {
+        assertEquals("stats", theme("""{"clock":{"type":"stats"}}""").lockClock!!.getJSONObject(0).getString("type"))
+        assertEquals(2, theme("""{"clock":[{"type":"stats"},{"type":"week"}]}""").lockClock!!.length())
+        assertNull(theme("""{}""").lockClock)
     }
 }

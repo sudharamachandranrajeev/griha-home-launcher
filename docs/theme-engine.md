@@ -81,6 +81,12 @@ A theme may add a `lock` section: `subject` (wash, duotone, rim or halo), `amoun
 `prefers`, so Griha 0.6.0 still installs the theme and simply ignores the section. The user's lock photo
 is never changed; only its cut-out subject is styled, and the user can pick another look or none.
 
+From Griha 0.8.0 (`lock.clock`) the theme's clock piece is drawn on the lock screen in a date edition,
+under Android's own clock, which keeps the live time: a wallpaper is a still picture, so the piece shows
+the day, month and week instead of the time, battery or weather. `lock.clock` names the piece (a home
+block or a list of them: clockCard, well, rings, headline, panel, stats, infoKeys, week); without it the
+first clock on the theme's home is used.
+
 ## Downloading and safety
 
 - **Catalogue:** `index.json` from a griha-themes release lists each theme's id, version, engine,

@@ -42,7 +42,9 @@ class HomeKit(
     val battery: () -> Pair<Int?, Boolean>,
     val weather: () -> WeatherNow?,
     val icon: (AppEntry) -> View,
-    val clock: (Float, Int) -> TextClock
+    val clock: (Float, Int) -> TextClock,
+    /** Drawn once into the lock wallpaper: no live time, battery or weather, only the date. */
+    val lock: Boolean = false
 )
 
 /**
@@ -62,6 +64,37 @@ class ThemeHome(private val kit: HomeKit) {
     fun hasNavigation(blocks: JSONArray): Boolean = (0 until blocks.length()).any { i ->
         val block = blocks.optJSONObject(i) ?: return@any false
         block.optString("type") in setOf("nav", "tabs") || (block.optString("type") == "row" && hasNavigation(block.optJSONArray("items") ?: JSONArray()))
+    }
+
+    /**
+     * The theme's clock piece in its date edition, for the lock wallpaper: Android draws the live
+     * time above it, so the piece shows the day instead. The theme can name the piece in lock.clock;
+     * otherwise it is the first clock on the theme's home. [onPhoto] puts card-less pieces on a card.
+     */
+    fun lockPiece(theme: ThemeSpec, onPhoto: Boolean): View? {
+        val blocks = theme.lockClock ?: theme.home?.let { firstClock(it) }?.let { JSONArray().put(it) } ?: return null
+        val column = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
+        build(blocks, column)
+        if (column.childCount == 0) return null
+        (column.getChildAt(0).layoutParams as LinearLayout.LayoutParams).topMargin = 0
+        val bare = (0 until blocks.length()).all { blocks.optJSONObject(it)?.optString("type") in setOf("headline", "panel") }
+        if (!onPhoto || !bare) return column
+        return card(28).apply {
+            setPadding(dp(22), dp(18), dp(22), dp(18))
+            addView(column)
+        }
+    }
+
+    private fun firstClock(blocks: JSONArray): JSONObject? {
+        val all = mutableListOf<JSONObject>()
+        fun walk(list: JSONArray) {
+            for (i in 0 until list.length()) {
+                val b = list.optJSONObject(i) ?: continue
+                if (b.optString("type") in setOf("row", "stack")) walk(b.optJSONArray("items") ?: JSONArray()) else all += b
+            }
+        }
+        walk(blocks)
+        return CLOCKS.firstNotNullOfOrNull { type -> all.firstOrNull { it.optString("type") == type } }
     }
 
     fun build(blocks: JSONArray, into: LinearLayout) {
@@ -117,6 +150,8 @@ class ThemeHome(private val kit: HomeKit) {
         ctx.label(text, size, colour, style, family)
 
     private fun now() = LocalDateTime.now()
+    private fun weekNumber() = LocalDate.now().get(WeekFields.of(kit.locale).weekOfWeekBasedYear())
+    private fun monthFraction() = LocalDate.now().let { it.dayOfMonth / it.lengthOfMonth().toFloat() }
     private fun date(pattern: String) = now().format(DateTimeFormatter.ofPattern(pattern, kit.locale))
     private fun extra(name: String, fallback: Int) = kit.theme?.extra(name, c.dark) ?: fallback
 
@@ -167,7 +202,7 @@ class ThemeHome(private val kit: HomeKit) {
         val card = card(if (style == "glass") 30 else 32)
         card.setPadding(dp(22), dp(20), dp(22), dp(18))
         val top = LinearLayout(ctx).apply { gravity = Gravity.CENTER_VERTICAL }
-        val clock = kit.clock(if (style == "chunky") 40f else 42f, ink).apply {
+        val clock = (if (kit.lock) label(date("EEE d"), if (style == "chunky") 40f else 42f, ink) else kit.clock(if (style == "chunky") 40f else 42f, ink)).apply {
             typeface = Typeface.create(if (style == "glass") "sans-serif-light" else "sans-serif-black", Typeface.NORMAL)
             includeFontPadding = false
         }
@@ -186,31 +221,40 @@ class ThemeHome(private val kit: HomeKit) {
         }
         top.addView(weatherView)
         card.addView(top)
-        if (style != "clay") kit.tick { weatherView.text = weatherText()?.let { (if (style == "chunky") "☀ " else "") + it } ?: kit.battery().first?.let { "$it%" } ?: "" }
+        if (style != "clay") kit.tick {
+            weatherView.text = if (kit.lock) (if (style == "glass") date("MMM").uppercase(kit.locale) else "")
+                else weatherText()?.let { (if (style == "chunky") "☀ " else "") + it } ?: kit.battery().first?.let { "$it%" } ?: ""
+        }
         val place = kit.settings.place.trim()
         if (style == "chunky" && place.isNotEmpty()) card.addView(label(place, 12f, muted).apply { setPadding(0, dp(8), 0, 0) })
         val dateRow = LinearLayout(ctx).apply { gravity = Gravity.CENTER_VERTICAL }
         val dateLabel = label("", if (style == "chunky") 15f else 16f, ink, Typeface.BOLD)
         dateRow.addView(dateLabel, LinearLayout.LayoutParams(0, -2, 1f))
-        kit.tick { dateLabel.text = date("EEEE, d MMM") }
+        kit.tick { dateLabel.text = if (kit.lock) date("MMMM yyyy") else date("EEEE, d MMM") }
         if (style == "chunky") {
             val pill = label("", 15f, ink, Typeface.BOLD).apply {
                 gravity = Gravity.CENTER
                 setPadding(dp(16), dp(8), dp(16), dp(8))
                 depth(c, dpf(22f), Role.PRIMARY, c.accent)
             }
-            kit.tick { pill.text = kit.weather()?.rounded() ?: kit.battery().first?.let { "$it%" } ?: "—" }
+            kit.tick { pill.text = if (kit.lock) "W${weekNumber()}" else kit.weather()?.rounded() ?: kit.battery().first?.let { "$it%" } ?: "—" }
             dateRow.addView(pill)
         }
         card.addView(dateRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(if (style == "chunky") 2 else 8) })
         when (style) {
-            "glass" -> card.addView(label("", 12f, muted).also { line -> kit.tick { line.text = listOfNotNull(batteryText(), place.ifEmpty { null }).joinToString(" · ") } })
+            "glass" -> card.addView(label("", 12f, muted).also { line -> kit.tick {
+                line.text = if (kit.lock) HomeText.lockLine(now(), kit.settings.name, kit.locale)
+                    else listOfNotNull(batteryText(), place.ifEmpty { null }).joinToString(" · ")
+            } })
             "clay" -> {
                 card.addView(label("", 12f, muted).also { line -> kit.tick { line.text = listOfNotNull(weatherText(), place.ifEmpty { null }).joinToString(" · ") } })
                 val bar = BarGauge(ctx, c)
-                kit.tick { bar.fraction = (kit.battery().first ?: 0) / 100f }
+                // On the lock screen the bar fills with the month instead of the battery.
+                kit.tick { bar.fraction = if (kit.lock) monthFraction() else (kit.battery().first ?: 0) / 100f }
                 card.addView(bar, LinearLayout.LayoutParams(-1, dp(18)).apply { topMargin = dp(14) })
-                card.addView(label("", 11f, muted, Typeface.BOLD).also { l -> kit.tick { l.text = batteryText() } })
+                card.addView(label("", 11f, muted, Typeface.BOLD).also { l -> kit.tick {
+                    l.text = if (kit.lock) "Day ${LocalDate.now().dayOfMonth} of ${LocalDate.now().lengthOfMonth()}" else batteryText()
+                } })
             }
         }
         if (b.optBoolean("week")) card.addView(weekPill(), LinearLayout.LayoutParams(-1, dp(70)).apply { topMargin = dp(14) })
@@ -229,6 +273,17 @@ class ThemeHome(private val kit: HomeKit) {
         val clock = RingGauge(ctx, c, c.secondary, true)
         addView(clock, FrameLayout.LayoutParams(dp(140), dp(140), Gravity.END or Gravity.TOP).apply { setMargins(0, dp(84), dp(4), 0) })
         kit.tick {
+            if (kit.lock) {
+                // The date edition: the month so far, and the week so far.
+                battery.fraction = monthFraction()
+                battery.big = date("d")
+                battery.contentDescription = date("EEEE d MMMM")
+                clock.fraction = LocalDate.now().dayOfWeek.value / 7f
+                clock.small = "- ${date("MMMM")} -"
+                clock.big = "( ${date("EEE")} )"
+                clock.foot = "- ${date("dd.MM.yyyy")} -"
+                return@tick
+            }
             val (p, charging) = kit.battery()
             battery.fraction = (p ?: 0) / 100f
             battery.big = p?.let { "$it%" } ?: "—"
@@ -245,7 +300,7 @@ class ThemeHome(private val kit: HomeKit) {
     }
 
     private fun well(): View {
-        val face = WellClock(ctx, c)
+        val face = WellClock(ctx, c).apply { dateOnly = kit.lock }
         kit.tick { face.invalidate(); face.contentDescription = "Clock, ${HomeText.time(now(), kit.use24Hour, kit.locale)}. Tap to open alarms" }
         return FrameLayout(ctx).apply {
             addView(tap(face, "Clock") { kit.actions.onClock() }, FrameLayout.LayoutParams(dp(286), dp(286), Gravity.CENTER))
@@ -255,12 +310,13 @@ class ThemeHome(private val kit: HomeKit) {
 
     private fun headline() = LinearLayout(ctx).apply {
         orientation = LinearLayout.VERTICAL
-        addView(kit.clock(64f, ink).apply { typeface = Typeface.create("sans-serif-medium", Typeface.BOLD); includeFontPadding = false })
+        val big = if (kit.lock) label(date("EEEE"), 52f, ink).apply { maxLines = 1 } else kit.clock(64f, ink)
+        addView(big.apply { typeface = Typeface.create("sans-serif-medium", Typeface.BOLD); includeFontPadding = false })
         val day = label("", 24f, ink, Typeface.BOLD, "sans-serif-medium")
         val line = label("", 14f, muted)
         kit.tick {
-            day.text = date("EEEE, d MMMM")
-            line.text = HomeText.greetingFor(now().hour, kit.settings.name)
+            day.text = if (kit.lock) date("d MMMM yyyy") else date("EEEE, d MMMM")
+            line.text = if (kit.lock) HomeText.lockLine(now(), kit.settings.name, kit.locale) else HomeText.greetingFor(now().hour, kit.settings.name)
         }
         addView(day)
         addView(line)
@@ -291,7 +347,8 @@ class ThemeHome(private val kit: HomeKit) {
         kit.tick {
             number.text = date("dd")
             month.text = date("MMMM").uppercase(kit.locale)
-            sentence.text = HomeText.panelLine(now(), kit.weather(), kit.battery().first, kit.battery().second, kit.use24Hour, kit.locale)
+            sentence.text = if (kit.lock) HomeText.lockLine(now(), kit.settings.name, kit.locale)
+                else HomeText.panelLine(now(), kit.weather(), kit.battery().first, kit.battery().second, kit.use24Hour, kit.locale)
             weekday.text = date("EEEE")
             part.text = DayPart.at(now().hour).word.replaceFirstChar { it.uppercase() }
         }
@@ -474,7 +531,10 @@ class ThemeHome(private val kit: HomeKit) {
             addView(glyph(glyph, 18f, if (glow) c.accent else ink))
             setOnClickListener { action() }
         }
-        val keys = listOf(
+        val keys = if (kit.lock) listOf(
+            key({ date("EEE d") }, { date("MMMM") }, "◷", true) {},
+            key({ "Week ${weekNumber()}" }, { date("yyyy") }, "▦", false) {})
+        else listOf(
             key({ HomeText.time(now(), kit.use24Hour, kit.locale) }, { date("EEEE") }, "◷", true) { kit.actions.onClock() },
             key({ kit.battery().first?.let { "$it%" } ?: "—" }, { if (kit.battery().second) "Charging" else "Battery" }, "⚡", false) {},
             key({ kit.weather()?.rounded() ?: date("d") }, { kit.weather()?.let { Weather.describe(it.code) } ?: date("MMMM") }, "☀", false) { kit.actions.onCalendar() },
@@ -569,9 +629,15 @@ class ThemeHome(private val kit: HomeKit) {
             kit.tick { v.text = value() }
             addView(v)
         }, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = if (childCount > 0) dp(12) else 0 })
-        stat("Battery", { kit.battery().first?.let { "$it%" } ?: "—" }, true)
-        stat("Outside", { kit.weather()?.rounded() ?: "—" }, false)
-        stat("Today", { date("d MMM") }, false)
+        if (kit.lock) {
+            stat("Today", { date("EEE d") }, true)
+            stat("Week", { weekNumber().toString() }, false)
+            stat("Month", { date("MMM") }, false)
+        } else {
+            stat("Battery", { kit.battery().first?.let { "$it%" } ?: "—" }, true)
+            stat("Outside", { kit.weather()?.rounded() ?: "—" }, false)
+            stat("Today", { date("d MMM") }, false)
+        }
     }
 
     private fun toasts() = LinearLayout(ctx).apply {
@@ -904,6 +970,8 @@ class RingGauge(context: Context, private val c: Palette, private val arc: Int, 
 /** An analog clock in a deep well pressed into the page, with large quarter numerals. */
 @SuppressLint("ViewConstructor")
 class WellClock(context: Context, private val c: Palette) : View(context) {
+    /** Shows the day in the middle instead of hands, for the lock wallpaper where time cannot move. */
+    var dateOnly = false
     private val d = resources.displayMetrics.density
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER }
     private val well = c.depthDrawable(d, 1000 * d, Role.FIELD, c.background)
@@ -929,6 +997,20 @@ class WellClock(context: Context, private val c: Palette) : View(context) {
             paint.textSize = size * (if (quarter) 0.16f else 0.06f)
             paint.typeface = if (quarter) heavy else medium
             canvas.drawText(i.toString(), cx + r * sin(a).toFloat(), cy - r * cos(a).toFloat() + paint.textSize * 0.36f, paint)
+        }
+        if (dateOnly) {
+            val today = LocalDate.now()
+            paint.color = numeral
+            paint.typeface = heavy
+            paint.textSize = size * 0.2f
+            canvas.drawText(today.dayOfMonth.toString(), cx, cy + paint.textSize * 0.36f, paint)
+            paint.typeface = medium
+            paint.textSize = size * 0.05f
+            paint.letterSpacing = 0.2f
+            canvas.drawText(today.month.getDisplayName(java.time.format.TextStyle.SHORT, Locale.getDefault()).uppercase(), cx, cy - size * 0.13f, paint)
+            canvas.drawText(today.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, Locale.getDefault()).uppercase(), cx, cy + size * 0.17f, paint)
+            paint.letterSpacing = 0f
+            return
         }
         val t = LocalTime.now()
         fun hand(degrees: Double, length: Float, width: Float) {
@@ -968,3 +1050,6 @@ class VerticalText(context: Context, private val colour: Int, private val sizeSp
         canvas.restore()
     }
 }
+
+/** Home blocks that can stand in for a clock on the lock screen, best first. */
+private val CLOCKS = listOf("clockCard", "well", "rings", "headline", "panel", "stats", "infoKeys")
