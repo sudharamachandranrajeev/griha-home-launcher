@@ -319,7 +319,7 @@ class SettingsScreen(
         }) }
 
         section("Get more themes")
-        group.addView(context.label("The catalogue lives at github.com/sudharamachandranrajeev/griha-themes. Griha asks for it only " +
+        group.addView(context.label("The catalogue lives at github.com/sudharamachandranrajeev/griha-launcher-themes. Griha asks for it only " +
             "when you tap below. Themes are data only: colours, surfaces, light and pictures, checked against their published " +
             "SHA-256 before they are used.", 14f, muted))
         val status = context.label("", 14f, muted)

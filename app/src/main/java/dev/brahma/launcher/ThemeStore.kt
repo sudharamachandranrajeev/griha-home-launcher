@@ -73,7 +73,7 @@ class ThemeStore(private val root: File) {
     }
 
     companion object {
-        const val INDEX_URL = "https://github.com/sudharamachandranrajeev/griha-themes/releases/latest/download/index.json"
+        const val INDEX_URL = "https://github.com/sudharamachandranrajeev/griha-launcher-themes/releases/latest/download/index.json"
         private val ID = Regex("[a-z0-9]+(-[a-z0-9]+)*")
         /** Only these files may be in a theme package. */
         private val ALLOWED = Regex("theme\\.json|preview\\.png|elements\\.png|wallpapers/[a-z0-9-]+\\.(jpg|png|webp)|fonts/[a-z0-9-]+\\.(ttf|otf)")

@@ -12,7 +12,7 @@
   <a href="https://github.com/sudharamachandranrajeev/griha-home-launcher/releases"><img src="https://img.shields.io/github/v/release/sudharamachandranrajeev/griha-home-launcher?include_prereleases&color=8a6512&label=download" alt="Latest release"></a>
   <img src="https://img.shields.io/badge/works%20on-Android%208.0%2B-555" alt="Works on Android 8.0 and later">
   <a href="LICENSE"><img src="https://img.shields.io/badge/licence-MIT-2e7d32" alt="Licence MIT"></a>
-  <a href="https://github.com/sudharamachandranrajeev/brahma"><img src="https://img.shields.io/badge/part%20of-Brahma-8a5cf6" alt="Part of Brahma"></a>
+  <a href="https://github.com/sudharamachandranrajeev/brahma-life-suite"><img src="https://img.shields.io/badge/part%20of-Brahma-8a5cf6" alt="Part of Brahma"></a>
 </p>
 
 <p align="center">
@@ -30,7 +30,7 @@ Status: **beta (0.5)**, used daily on one phone. One honest limit: it does not h
 ## ✨ What it does
 
 - 🏠 **Eight home looks** – Mono, Editorial, Soft cards, Arches, Night list, Dial clock, Soft glass (frosted clock, rimmed glass pills, a glass dock) and Dark luxury gold. Switch any time.
-- 🎨 **Downloadable themes with their own home** – each brings its own layout as well as its colours: Pastel Neo, Candy Gloss, Lime Blob, Tangerine Peel, Clay Bloom, Midnight Jelly, Berry Wave, Teal Grid and more from [griha-themes](https://github.com/sudharamachandranrajeev/griha-themes). Data only, checked before use, and removable.
+- 🎨 **Downloadable themes with their own home** – each brings its own layout as well as its colours: Pastel Neo, Candy Gloss, Lime Blob, Tangerine Peel, Clay Bloom, Midnight Jelly, Berry Wave, Teal Grid and more from [griha-themes](https://github.com/sudharamachandranrajeev/griha-launcher-themes). Data only, checked before use, and removable.
 - 🧊 **Six surface finishes** – Soft (raised and pressed, lit from the top left), Layered (stacked shadows and an accent glow), Tactile (thick keys with a warm glow), Glass (clear with coloured rims), Carved (dark bevels and an ember glow) and Flat. Cards, buttons, search fields, switches and sliders across home, all apps and settings take the finish you pick.
 - 👑 **Luxe home** – gold cards for your day: a schedule checklist, a daily ring, a forgiving streak, a focus mode that hides chosen apps, quotes and a roadmap.
 - 👆 **Swipe for all apps** – at the end of home, swipe up for every app; at the top of the list, swipe down to go home. You pick the swipe length and the animation.
@@ -172,9 +172,9 @@ Griha is the home screen of the **Brahma** family of private apps.
 
 | App | What it does |
 | --- | --- |
-| [brahma](https://github.com/sudharamachandranrajeev/brahma) | The shared core and the all-in-one app |
-| [bahya-nireekshana](https://github.com/sudharamachandranrajeev/bahya-nireekshana) | See how much internet data you use |
-| [bhandara](https://github.com/sudharamachandranrajeev/bhandara) | See how full your disks are and what fills them |
+| [brahma](https://github.com/sudharamachandranrajeev/brahma-life-suite) | The shared core and the all-in-one app |
+| [bahya-nireekshana](https://github.com/sudharamachandranrajeev/bahya-nireekshana-network-monitor) | See how much internet data you use |
+| [bhandara](https://github.com/sudharamachandranrajeev/bhandara-storage-monitor) | See how full your disks are and what fills them |
 
 ## License
 
